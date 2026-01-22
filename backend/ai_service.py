@@ -5,9 +5,18 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Simple in-memory cache to avoid repeated API calls
+CACHE = {}
+
 def generate_learning_path(goal: str, experience_level: str, time_commitment: str):
     """Generate a structured learning path using OpenAI"""
     
+    # Check cache first
+    cache_key = f"{goal}:{experience_level}:{time_commitment}"
+    if cache_key in CACHE:
+        print(f"Returning cached result for: {cache_key}")
+        return CACHE[cache_key]
+
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     
     # TODO: might want to cache common paths later
@@ -50,6 +59,9 @@ Make the path progressive - each milestone should build on previous ones. Be spe
         )
         
         result = json.loads(response.choices[0].message.content)
+        
+        # Store in cache
+        CACHE[cache_key] = result
         return result
     
     except Exception as e:
