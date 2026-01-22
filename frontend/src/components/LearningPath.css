@@ -1,0 +1,286 @@
+.learning-path-container {
+    min-height: 100vh;
+    padding: var(--spacing-xl) var(--spacing-md);
+    max-width: 1000px;
+    margin: 0 auto;
+    position: relative;
+}
+
+.path-header {
+    padding: var(--spacing-xl);
+    margin-bottom: var(--spacing-xl);
+    position: relative;
+}
+
+.back-button {
+    position: absolute;
+    top: var(--spacing-md);
+    left: var(--spacing-md);
+}
+
+.path-header-content {
+    padding-top: var(--spacing-lg);
+}
+
+.path-title {
+    font-size: var(--font-size-3xl);
+    font-weight: 800;
+    margin-bottom: var(--spacing-sm);
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.path-description {
+    font-size: var(--font-size-lg);
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-lg);
+    line-height: 1.6;
+}
+
+.path-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+    align-items: center;
+}
+
+.meta-item {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.progress-section {
+    margin-top: var(--spacing-lg);
+}
+
+.progress-text {
+    display: block;
+    text-align: center;
+    margin-top: var(--spacing-xs);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--accent-purple);
+}
+
+.milestones-title {
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    margin-bottom: var(--spacing-lg);
+    text-align: center;
+}
+
+.milestones-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.milestone-card {
+    padding: var(--spacing-lg);
+    position: relative;
+    cursor: pointer;
+    transition: all var(--transition-base);
+}
+
+.milestone-card.completed {
+    opacity: 0.7;
+}
+
+.milestone-card.completed .milestone-title {
+    text-decoration: line-through;
+    color: var(--text-secondary);
+}
+
+.milestone-header {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-md);
+}
+
+.milestone-number {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--gradient-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.milestone-card.completed .milestone-number {
+    background: var(--gradient-success);
+}
+
+.milestone-info {
+    flex: 1;
+}
+
+.milestone-title {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    margin-bottom: var(--spacing-xs);
+}
+
+.milestone-meta {
+    display: flex;
+    gap: var(--spacing-md);
+    align-items: center;
+}
+
+.milestone-hours {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.milestone-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    align-items: center;
+}
+
+.checkbox-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+}
+
+.checkbox {
+    width: 28px;
+    height: 28px;
+    border: 2px solid var(--glass-border);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-base);
+    font-size: var(--font-size-lg);
+}
+
+.checkbox:hover {
+    border-color: var(--accent-purple);
+}
+
+.checkbox.checked {
+    background: var(--gradient-success);
+    border-color: transparent;
+}
+
+.expand-button {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    padding: var(--spacing-xs);
+    transition: all var(--transition-base);
+}
+
+.expand-button:hover {
+    color: var(--text-primary);
+}
+
+.milestone-details {
+    margin-top: var(--spacing-lg);
+    padding-top: var(--spacing-lg);
+    border-top: 1px solid var(--glass-border);
+    animation: fadeIn var(--transition-base);
+}
+
+.milestone-description,
+.milestone-resources {
+    margin-bottom: var(--spacing-md);
+}
+
+.milestone-details h4 {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin-bottom: var(--spacing-sm);
+    color: var(--accent-purple);
+}
+
+.milestone-description p {
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.milestone-resources ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.milestone-resources li {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+}
+
+.resource-icon {
+    font-size: var(--font-size-lg);
+}
+
+.timeline-connector {
+    width: 2px;
+    height: var(--spacing-md);
+    background: var(--glass-border);
+    margin: 0 auto;
+}
+
+.fab {
+    position: fixed;
+    bottom: var(--spacing-xl);
+    right: var(--spacing-xl);
+    border-radius: 50px;
+    padding: var(--spacing-md) var(--spacing-xl);
+    box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+    z-index: 100;
+}
+
+.fab:hover {
+    box-shadow: 0 12px 32px rgba(102, 126, 234, 0.6);
+}
+
+@media (max-width: 768px) {
+    .learning-path-container {
+        padding: var(--spacing-lg) var(--spacing-sm);
+    }
+
+    .path-header {
+        padding: var(--spacing-lg);
+    }
+
+    .path-title {
+        font-size: var(--font-size-2xl);
+    }
+
+    .path-description {
+        font-size: var(--font-size-base);
+    }
+
+    .milestone-header {
+        flex-wrap: wrap;
+    }
+
+    .milestone-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .fab {
+        bottom: var(--spacing-lg);
+        right: var(--spacing-lg);
+        padding: var(--spacing-sm) var(--spacing-lg);
+    }
+}
