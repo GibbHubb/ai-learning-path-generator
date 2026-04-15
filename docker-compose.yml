@@ -1,0 +1,30 @@
+version: '3.9'
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    env_file: .env
+    volumes:
+      - ./backend:/app
+      # Persist the SQLite database outside the container
+      - db_data:/app/data
+    environment:
+      - DATABASE_URL=sqlite:///./data/learning_paths.db
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    env_file: .env
+    volumes:
+      - ./frontend:/app
+      # Prevent host node_modules from shadowing the container's
+      - /app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  db_data:

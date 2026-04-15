@@ -1,37 +1,98 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import './LandingPage.css';
+
+const API_BASE = 'http://localhost:8000/api';
 
 const LandingPage = ({ onPathGenerated }) => {
     const [formData, setFormData] = useState({
         goal: '',
         experience_level: 'beginner',
-        time_commitment: '5-10 hours/week'
+        time_commitment: '5-10 hours/week',
     });
     const [isGenerating, setIsGenerating] = useState(false);
+    const [streamedMilestones, setStreamedMilestones] = useState([]);
     const [error, setError] = useState(null);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError(null);
+        setStreamedMilestones([]);
         setIsGenerating(true);
 
         try {
-            const response = await axios.post('http://localhost:8000/api/generate', formData);
-            onPathGenerated(response.data);
+            const response = await fetch(`${API_BASE}/generate/stream`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData),
+            });
+
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.detail || `Server error ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop(); // keep incomplete last line
+
+                for (const line of lines) {
+                    if (line.startsWith('event: error')) {
+                        // next `data:` line will have the detail
+                        continue;
+                    }
+                    if (line.startsWith('event: done')) {
+                        // handled below via the data line that follows
+                        continue;
+                    }
+                    if (line.startsWith('data:')) {
+                        const payload = line.slice(5).trim();
+                        if (!payload) continue;
+
+                        let parsed;
+                        try {
+                            parsed = JSON.parse(payload);
+                        } catch {
+                            continue;
+                        }
+
+                        // The `done` event carries the full path object (has milestones array)
+                        if (parsed.milestones !== undefined) {
+                            // Full LearningPathResponse — transition to path view
+                            setIsGenerating(false);
+                            onPathGenerated(parsed);
+                            return;
+                        }
+
+                        // Error payload
+                        if (parsed.detail) {
+                            throw new Error(parsed.detail);
+                        }
+
+                        // Individual milestone
+                        setStreamedMilestones((prev) => [...prev, parsed]);
+                    }
+                }
+            }
+
+            // Fallback: if stream ended without a done event
+            setIsGenerating(false);
         } catch (err) {
-            setError(err.response?.data?.detail || 'Failed to generate learning path. Please try again.');
+            setError(err.message || 'Failed to generate learning path. Please try again.');
             console.error('Error generating path:', err);
-        } finally {
             setIsGenerating(false);
         }
     };
 
     const handleChange = (e) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value
-        });
+        setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
     return (
@@ -116,6 +177,21 @@ const LandingPage = ({ onPathGenerated }) => {
                             </div>
                         )}
 
+                        {/* Progressive milestone preview while streaming */}
+                        {isGenerating && streamedMilestones.length > 0 && (
+                            <div className="stream-preview glass-card fade-in">
+                                <p className="stream-preview-label">Building your path…</p>
+                                <ul className="stream-preview-list">
+                                    {streamedMilestones.map((m, i) => (
+                                        <li key={m.id ?? i} className="stream-preview-item fade-in">
+                                            <span className="stream-milestone-number">{i + 1}</span>
+                                            <span>{m.title}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+
                         <button
                             type="submit"
                             className="btn btn-primary btn-large"
@@ -124,12 +200,10 @@ const LandingPage = ({ onPathGenerated }) => {
                             {isGenerating ? (
                                 <>
                                     <span className="spinner"></span>
-                                    <span style={{ marginLeft: '0.5rem' }}>Generating Your Path...</span>
+                                    <span style={{ marginLeft: '0.5rem' }}>Generating Your Path…</span>
                                 </>
                             ) : (
-                                <>
-                                    <span>🚀 Generate Learning Path</span>
-                                </>
+                                <span>🚀 Generate Learning Path</span>
                             )}
                         </button>
                     </form>

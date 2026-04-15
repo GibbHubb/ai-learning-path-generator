@@ -13,9 +13,12 @@ A learning path generator that helps users master complex skills by breaking the
 - [Features](#features)
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
+- [Quick Start (Docker)](#quick-start-docker)
 - [Getting Started](#getting-started)
 - [Usage](#usage)
 - [API Documentation](#api-documentation)
+- [Streaming](#streaming)
+- [Resumable Progress](#resumable-progress)
 - [Design Decisions](#design-decisions)
 - [Future Improvements](#future-improvements-v2)
 - [Time Breakdown](#time-breakdown)
@@ -106,6 +109,29 @@ A tool that:
 5. Backend saves to database and returns to frontend
 6. Frontend displays interactive learning path
 7. User can mark milestones complete (PATCH `/api/milestones/{id}`)
+
+## Quick Start (Docker)
+
+The fastest way to run both services with a single command:
+
+```bash
+# 1. Copy the example env file and fill in your OpenAI key
+cp .env.example .env
+# Edit .env: set OPENAI_API_KEY=sk-...
+
+# 2. Start everything
+docker compose up --build
+```
+
+| Service  | URL                        |
+|----------|----------------------------|
+| Frontend | http://localhost:3000      |
+| Backend  | http://localhost:8000      |
+| API docs | http://localhost:8000/docs |
+
+Stop with `docker compose down`. The SQLite database is persisted in the `db_data` Docker volume.
+
+---
 
 ## Getting Started
 
@@ -248,7 +274,45 @@ Delete a learning path
 ### Interactive API Docs
 Visit `http://localhost:8000/docs` for Swagger UI documentation
 
-## 🎨 Design Decisions
+## Streaming
+
+Path generation uses **Server-Sent Events (SSE)** via `POST /api/generate/stream`.
+
+### How it works
+
+1. The frontend opens a streaming fetch to `/api/generate/stream`.
+2. The backend calls OpenAI (using the same prompt and in-memory cache as the sync endpoint), then yields each milestone as a separate `data:` SSE event as soon as the full response is available.
+3. Each milestone is **immediately persisted to the database** before being yielded, so partial progress is never lost.
+4. A final `event: done` carries the complete `LearningPathResponse` JSON — the frontend switches to the path view with zero extra requests.
+5. The existing sync endpoint `POST /api/generate` is **untouched** and continues to work.
+
+### SSE event format
+
+```
+data: {"id": 1, "title": "...", "order": 0, ...}
+
+data: {"id": 2, "title": "...", "order": 1, ...}
+
+event: done
+data: {"id": 7, "title": "Full path title", "milestones": [...], ...}
+```
+
+The progressive milestone list is rendered live in the generation form so users can see the path being built in real time.
+
+---
+
+## Resumable Progress
+
+Every path and its completion state are stored in SQLite.
+
+- On **app load** the frontend calls `GET /api/paths` and, if a previous path exists, shows a **"Resume your learning path on [title]?"** banner with **Continue** / **Start new** buttons.
+- Clicking **Continue** restores the path view with all previously ticked milestones intact.
+- Each milestone card has a **checkbox**. Toggling it calls `PATCH /api/milestones/{id}` which sets `completed` and `completed_at` on the database row.
+- Progress is therefore persistent across browser reloads and sessions.
+
+---
+
+## Design Decisions
 
 ### Product Decisions
 

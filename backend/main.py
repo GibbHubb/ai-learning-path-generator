@@ -1,8 +1,15 @@
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
 from routes import router
 import uvicorn
+
+# Configure structured logging before anything else
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s — %(message)s",
+)
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -36,8 +43,8 @@ request_counts = {}
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
-    # Only limit generation endpoint
-    if request.url.path == "/api/generate" and request.method == "POST":
+    # Only limit generation endpoints (sync and streaming)
+    if request.url.path in ("/api/generate", "/api/generate/stream") and request.method == "POST":
         client_ip = request.client.host
         current_time = time.time()
         

@@ -1,9 +1,12 @@
 import os
 import json
+import logging
 from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 # Simple in-memory cache to avoid repeated API calls
 CACHE = {}
@@ -14,7 +17,7 @@ def generate_learning_path(goal: str, experience_level: str, time_commitment: st
     # Check cache first
     cache_key = f"{goal}:{experience_level}:{time_commitment}"
     if cache_key in CACHE:
-        print(f"Returning cached result for: {cache_key}")
+        logger.info(f"Returning cached result for: {cache_key}")
         return CACHE[cache_key]
 
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -65,6 +68,16 @@ Make the path progressive - each milestone should build on previous ones. Be spe
         return result
     
     except Exception as e:
-        # probably should add better error handling here
-        print(f"Error generating learning path: {e}")
+        logger.error(f"Error generating learning path: {e}")
         raise Exception(f"Failed to generate learning path: {str(e)}")
+
+
+def stream_learning_path(goal: str, experience_level: str, time_commitment: str):
+    """
+    Generator that yields milestones one-by-one after generating the full path.
+    Uses the same caching and OpenAI call as generate_learning_path so the
+    sync endpoint remains untouched.
+    """
+    result = generate_learning_path(goal, experience_level, time_commitment)
+    for milestone in result.get("milestones", []):
+        yield milestone
