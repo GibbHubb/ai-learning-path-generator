@@ -81,3 +81,64 @@ def stream_learning_path(goal: str, experience_level: str, time_commitment: str)
     result = generate_learning_path(goal, experience_level, time_commitment)
     for milestone in result.get("milestones", []):
         yield milestone
+
+
+def enrich_milestone_resources(milestone_id: int, title: str, description: str, goal: str):
+    """Enrich a milestone with 2-3 real resource links via Claude Haiku.
+
+    Runs synchronously (called from a BackgroundTask thread).
+    Updates the milestone's resources column in the DB.
+    """
+    import re
+    try:
+        import anthropic
+    except ImportError:
+        logger.warning("anthropic SDK not installed — skipping resource enrichment")
+        return
+
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        logger.warning("ANTHROPIC_API_KEY not set — skipping resource enrichment")
+        return
+
+    from database import SessionLocal
+    from models import Milestone
+
+    prompt = (
+        f"You are a learning resource curator. For the milestone '{title}' "
+        f"(description: {description}) in a learning path about '{goal}', "
+        f"list exactly 3 real, publicly accessible learning resources. "
+        f'Return ONLY a JSON array: [{{"title": "...", "url": "...", "type": "video|docs|article"}}]. '
+        f"Use specific, named resources you know exist. No markdown fences."
+    )
+
+    try:
+        client = anthropic.Anthropic(api_key=api_key)
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=500,
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        raw = message.content[0].text.strip()
+        # Strip markdown fences if present
+        raw = re.sub(r'^```json?\s*', '', raw)
+        raw = re.sub(r'\s*```$', '', raw)
+        parsed = json.loads(raw)
+
+        if not isinstance(parsed, list):
+            logger.warning(f"Enrichment for milestone {milestone_id}: expected list, got {type(parsed)}")
+            return
+
+        db = SessionLocal()
+        try:
+            m = db.query(Milestone).filter(Milestone.id == milestone_id).first()
+            if m:
+                m.resources = json.dumps(parsed)
+                db.commit()
+                logger.info(f"Enriched milestone {milestone_id} with {len(parsed)} resources")
+        finally:
+            db.close()
+
+    except Exception as e:
+        logger.warning(f"Resource enrichment failed for milestone {milestone_id}: {e}")

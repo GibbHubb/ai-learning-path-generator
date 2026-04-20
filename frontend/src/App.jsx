@@ -1,30 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import LandingPage from './components/LandingPage';
 import LearningPath from './components/LearningPath';
+import SharePathPage from './components/SharePathPage';
 import './index.css';
 
 const API_BASE = 'http://localhost:8000/api';
 
+// Check if the URL is a share link: /share/:pathId
+function getSharePathId() {
+    const match = window.location.pathname.match(/\/share\/(\d+)/);
+    return match ? parseInt(match[1], 10) : null;
+}
+
 function App() {
+    const sharePathId = getSharePathId();
     const [currentPath, setCurrentPath] = useState(null);
-    const [view, setView] = useState('landing'); // 'landing' | 'path'
+    const [view, setView] = useState(sharePathId ? 'share' : 'landing');
     const [existingPaths, setExistingPaths] = useState([]);
-    const [resumePrompt, setResumePrompt] = useState(null); // path object to resume
+    const [resumePrompt, setResumePrompt] = useState(null);
 
     // On mount: fetch existing paths to power the resume prompt
     useEffect(() => {
+        if (sharePathId) return; // Skip for share pages
         fetch(`${API_BASE}/paths`)
             .then((r) => r.json())
             .then((paths) => {
                 if (Array.isArray(paths) && paths.length > 0) {
                     setExistingPaths(paths);
-                    // Show resume prompt for the most recent path
                     setResumePrompt(paths[0]);
                 }
             })
-            .catch(() => {
-                // Silently ignore — backend may not be running in all environments
-            });
+            .catch(() => {});
     }, []);
 
     const handlePathGenerated = (pathData) => {
@@ -51,6 +57,15 @@ function App() {
         setView('landing');
         setCurrentPath(null);
     };
+
+    // AP2 — render shared path page
+    if (view === 'share' && sharePathId) {
+        return (
+            <div className="app">
+                <SharePathPage pathId={sharePathId} />
+            </div>
+        );
+    }
 
     return (
         <div className="app">

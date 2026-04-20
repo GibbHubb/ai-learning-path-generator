@@ -14,6 +14,20 @@ logging.basicConfig(
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
+# Migrate existing SQLite tables (add columns that don't exist yet)
+from sqlalchemy import inspect, text
+with engine.connect() as conn:
+    cols = {c["name"] for c in inspect(engine).get_columns("learning_paths")}
+    if "is_public" not in cols:
+        conn.execute(text("ALTER TABLE learning_paths ADD COLUMN is_public BOOLEAN NOT NULL DEFAULT 0"))
+    if "total_xp" not in cols:
+        conn.execute(text("ALTER TABLE learning_paths ADD COLUMN total_xp INTEGER NOT NULL DEFAULT 0"))
+    if "streak_days" not in cols:
+        conn.execute(text("ALTER TABLE learning_paths ADD COLUMN streak_days INTEGER NOT NULL DEFAULT 0"))
+    if "last_active_date" not in cols:
+        conn.execute(text("ALTER TABLE learning_paths ADD COLUMN last_active_date DATE"))
+    conn.commit()
+
 # Initialize FastAPI app
 app = FastAPI(
     title="AI Learning Path Generator",
