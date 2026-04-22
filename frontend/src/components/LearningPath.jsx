@@ -22,6 +22,10 @@ const LearningPath = ({ pathData, onBack, onRefresh }) => {
     const [streakDays, setStreakDays] = useState(pathData.streak_days || 0);
     const [copied, setCopied] = useState(false);
     const [isPublic, setIsPublic] = useState(pathData.is_public || false);
+    // AP5 — which milestone id is currently showing its feedback panel
+    const [feedbackPromptId, setFeedbackPromptId] = useState(null);
+    const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+    const [pathAdjustedFlash, setPathAdjustedFlash] = useState(false);
 
     const toggleMilestone = (milestoneId) => {
         setExpandedMilestone(expandedMilestone === milestoneId ? null : milestoneId);
@@ -29,8 +33,9 @@ const LearningPath = ({ pathData, onBack, onRefresh }) => {
 
     const toggleComplete = async (milestone) => {
         try {
+            const wasCompleted = milestone.completed;
             const res = await axios.patch(`${API_BASE}/milestones/${milestone.id}`, {
-                completed: !milestone.completed
+                completed: !wasCompleted
             });
 
             setMilestones(milestones.map(m =>
@@ -42,8 +47,40 @@ const LearningPath = ({ pathData, onBack, onRefresh }) => {
             // AP4 — update XP + streak from response
             if (res.data.total_xp !== undefined) setTotalXp(res.data.total_xp);
             if (res.data.streak_days !== undefined) setStreakDays(res.data.streak_days);
+
+            // AP5 — if the milestone was just marked complete (not unchecked), ask for feedback
+            if (!wasCompleted) {
+                setFeedbackPromptId(milestone.id);
+            } else {
+                setFeedbackPromptId((current) => (current === milestone.id ? null : current));
+            }
         } catch (error) {
             console.error('Error updating milestone:', error);
+        }
+    };
+
+    // AP5 — submit difficulty feedback, optionally replace remaining milestones
+    const submitFeedback = async (milestone, feedback) => {
+        if (feedbackSubmitting) return;
+        setFeedbackSubmitting(true);
+        try {
+            const res = await axios.post(
+                `${API_BASE}/milestones/${milestone.id}/feedback`,
+                { milestone_id: milestone.id, feedback }
+            );
+
+            if (feedback === 'too_easy' || feedback === 'too_hard') {
+                if (res.data && Array.isArray(res.data.milestones)) {
+                    setMilestones(res.data.milestones);
+                    setPathAdjustedFlash(true);
+                    setTimeout(() => setPathAdjustedFlash(false), 2500);
+                }
+            }
+            setFeedbackPromptId(null);
+        } catch (err) {
+            console.error('Feedback failed:', err);
+        } finally {
+            setFeedbackSubmitting(false);
         }
     };
 
@@ -73,6 +110,11 @@ const LearningPath = ({ pathData, onBack, onRefresh }) => {
 
     return (
         <div className="learning-path-container">
+            {pathAdjustedFlash && (
+                <div className="path-adjusted-flash glass-card fade-in">
+                    ✨ Path adjusted!
+                </div>
+            )}
             <div className="path-header glass-card fade-in">
                 <button className="btn btn-secondary back-button" onClick={onBack}>
                     ← Back
@@ -161,6 +203,36 @@ const LearningPath = ({ pathData, onBack, onRefresh }) => {
                                     </button>
                                 </div>
                             </div>
+
+                            {/* AP5 — inline difficulty-feedback panel after completion */}
+                            {feedbackPromptId === milestone.id && milestone.completed && (
+                                <div className="feedback-panel fade-in">
+                                    <p className="feedback-prompt">How was this milestone?</p>
+                                    <div className="feedback-actions">
+                                        <button
+                                            className="btn btn-feedback"
+                                            disabled={feedbackSubmitting}
+                                            onClick={(e) => { e.stopPropagation(); submitFeedback(milestone, 'too_easy'); }}
+                                        >
+                                            😴 Too easy
+                                        </button>
+                                        <button
+                                            className="btn btn-feedback"
+                                            disabled={feedbackSubmitting}
+                                            onClick={(e) => { e.stopPropagation(); submitFeedback(milestone, 'just_right'); }}
+                                        >
+                                            👍 Just right
+                                        </button>
+                                        <button
+                                            className="btn btn-feedback"
+                                            disabled={feedbackSubmitting}
+                                            onClick={(e) => { e.stopPropagation(); submitFeedback(milestone, 'too_hard'); }}
+                                        >
+                                            🥵 Too hard
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
 
                             {expandedMilestone === milestone.id && (
                                 <div className="milestone-details">

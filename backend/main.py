@@ -26,6 +26,11 @@ with engine.connect() as conn:
         conn.execute(text("ALTER TABLE learning_paths ADD COLUMN streak_days INTEGER NOT NULL DEFAULT 0"))
     if "last_active_date" not in cols:
         conn.execute(text("ALTER TABLE learning_paths ADD COLUMN last_active_date DATE"))
+
+    milestone_cols = {c["name"] for c in inspect(engine).get_columns("milestones")}
+    # AP5 — difficulty_feedback column on milestones
+    if "difficulty_feedback" not in milestone_cols:
+        conn.execute(text("ALTER TABLE milestones ADD COLUMN difficulty_feedback VARCHAR"))
     conn.commit()
 
 # Initialize FastAPI app

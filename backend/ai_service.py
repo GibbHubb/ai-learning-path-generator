@@ -83,6 +83,86 @@ def stream_learning_path(goal: str, experience_level: str, time_commitment: str)
         yield milestone
 
 
+def adjust_difficulty(
+    goal: str,
+    experience_level: str,
+    time_commitment: str,
+    path_title: str,
+    path_description: str,
+    completed_milestones: list,
+    remaining_milestones: list,
+    feedback: str,
+):
+    """AP5 — Regenerate remaining milestones at adjusted difficulty.
+
+    Uses OpenAI (same path as generate_learning_path) with a prompt that:
+    - Lists already-completed milestone titles (for coherence)
+    - Lists the remaining milestone titles to be replaced
+    - Instructs GPT to produce N new milestones at higher/lower difficulty
+
+    Yields milestones one-by-one (generator) so callers can stream.
+    Returns a list of the generated milestones.
+    """
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+    adjustment = {
+        "too_easy": "The learner found the path too easy so far. Make the remaining milestones MORE challenging — go deeper, cover advanced topics, and expect the learner to tackle harder practice projects.",
+        "too_hard": "The learner found the path too difficult so far. Make the remaining milestones EASIER — slow the pace, add more foundational explanations, and suggest gentler practice projects.",
+    }.get(feedback, "Keep the difficulty consistent with the current path.")
+
+    completed_titles = [m["title"] for m in completed_milestones]
+    remaining_count = len(remaining_milestones)
+
+    prompt = f"""You are an expert learning path designer. You are adjusting an existing learning path in response to user feedback.
+
+Goal: {goal}
+Experience Level: {experience_level}
+Time Commitment: {time_commitment}
+
+Path title: {path_title}
+Path overview: {path_description}
+
+The learner has already completed these milestones (DO NOT regenerate them, just keep them in mind for coherence):
+{json.dumps(completed_titles, indent=2)}
+
+The next {remaining_count} milestones need to be regenerated. {adjustment}
+
+Produce exactly {remaining_count} new milestones that continue logically from the completed ones. For each milestone provide:
+1. A clear, concise title
+2. A detailed description of what will be learned
+3. Estimated hours to complete
+4. 2-3 specific resource recommendations
+
+Return ONLY a JSON object with this exact structure:
+{{
+  "milestones": [
+    {{
+      "title": "...",
+      "description": "...",
+      "estimated_hours": 10,
+      "resources": ["...", "...", "..."]
+    }}
+  ]
+}}
+"""
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are an expert learning path designer. Always respond with valid JSON."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.7,
+            response_format={"type": "json_object"},
+        )
+        result = json.loads(response.choices[0].message.content)
+        return result.get("milestones", [])
+    except Exception as e:
+        logger.error(f"Error adjusting difficulty: {e}")
+        raise Exception(f"Failed to adjust difficulty: {str(e)}")
+
+
 def enrich_milestone_resources(milestone_id: int, title: str, description: str, goal: str):
     """Enrich a milestone with 2-3 real resource links via Claude Haiku.
 

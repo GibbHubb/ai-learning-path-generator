@@ -32,5 +32,6 @@ class Milestone(Base):
     resources = Column(Text)  # JSON string of recommended resources
     completed = Column(Boolean, default=False)
     completed_at = Column(DateTime, nullable=True)
+    difficulty_feedback = Column(String, nullable=True)  # AP5: "too_easy" | "too_hard" | None
 
     learning_path = relationship("LearningPath", back_populates="milestones")

@@ -10,7 +10,7 @@ import json
 
 from database import get_db
 from models import LearningPath, Milestone
-from ai_service import generate_learning_path, stream_learning_path, enrich_milestone_resources
+from ai_service import generate_learning_path, stream_learning_path, enrich_milestone_resources, adjust_difficulty
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +62,12 @@ class MilestoneUpdate(BaseModel):
 
 class ShareUpdate(BaseModel):
     is_public: bool = True
+
+
+# AP5 — difficulty feedback payload
+class DifficultyFeedback(BaseModel):
+    milestone_id: int
+    feedback: str  # "too_easy" | "just_right" | "too_hard" (or any "ok"-like value)
 
 
 def _parse_resources(raw: str) -> list:
@@ -347,3 +353,126 @@ async def delete_path(path_id: int, db: Session = Depends(get_db)):
     db.delete(path)
     db.commit()
     return {"success": True, "message": "Learning path deleted"}
+
+
+# AP5 — record difficulty feedback; optionally regenerate remaining milestones
+@router.post("/milestones/{milestone_id}/feedback", response_model=LearningPathResponse)
+async def milestone_feedback(
+    milestone_id: int,
+    body: DifficultyFeedback,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """Record user's difficulty feedback on a milestone.
+
+    - Always stores `milestone.difficulty_feedback = feedback`.
+    - If feedback is "too_easy" or "too_hard", regenerates remaining incomplete
+      milestones (order > anchor.order) at adjusted difficulty via OpenAI,
+      deletes the old remaining rows and inserts the new ones preserving
+      the order sequence.
+    - Otherwise just records the feedback and returns the path unchanged.
+    """
+    milestone = db.query(Milestone).filter(Milestone.id == milestone_id).first()
+    if not milestone:
+        raise HTTPException(status_code=404, detail="Milestone not found")
+
+    path = db.query(LearningPath).filter(LearningPath.id == milestone.learning_path_id).first()
+    if not path:
+        raise HTTPException(status_code=404, detail="Learning path not found")
+
+    milestone.difficulty_feedback = body.feedback
+
+    if body.feedback not in ("too_easy", "too_hard"):
+        db.commit()
+        db.refresh(path)
+        return _build_path_response(path)
+
+    # Split milestones into completed vs. remaining (ahead of this one, incomplete)
+    all_milestones = (
+        db.query(Milestone)
+        .filter(Milestone.learning_path_id == path.id)
+        .order_by(Milestone.order)
+        .all()
+    )
+    completed_milestones = [m for m in all_milestones if m.completed]
+    to_replace = [
+        m for m in all_milestones
+        if (not m.completed) and m.order > milestone.order
+    ]
+
+    if not to_replace:
+        # Nothing to regenerate — just save the feedback
+        db.commit()
+        db.refresh(path)
+        return _build_path_response(path)
+
+    completed_payload = [
+        {"title": m.title, "description": m.description} for m in completed_milestones
+    ]
+    remaining_payload = [
+        {"title": m.title, "description": m.description} for m in to_replace
+    ]
+    # Preserve the exact order sequence of the replaced rows
+    orders_to_reuse = [m.order for m in to_replace]
+
+    # Capture primitives before mutation for the AI call
+    goal = path.title
+    experience_level = path.experience_level
+    time_commitment = path.time_commitment
+    path_title = path.title
+    path_description = path.description
+    feedback = body.feedback
+
+    # Regenerate remaining milestones via OpenAI
+    try:
+        new_milestones = adjust_difficulty(
+            goal=goal,
+            experience_level=experience_level,
+            time_commitment=time_commitment,
+            path_title=path_title,
+            path_description=path_description,
+            completed_milestones=completed_payload,
+            remaining_milestones=remaining_payload,
+            feedback=feedback,
+        )
+    except Exception as e:
+        db.rollback()
+        logger.error(f"adjust_difficulty failed for path {path.id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to adjust difficulty: {e}")
+
+    # Delete the old remaining rows, insert the new ones reusing the order sequence
+    for m in to_replace:
+        db.delete(m)
+    db.flush()
+
+    created = []
+    for idx, md in enumerate(new_milestones):
+        # If the AI returned fewer than expected, keep ascending orders past the last reused one
+        if idx < len(orders_to_reuse):
+            new_order = orders_to_reuse[idx]
+        else:
+            new_order = orders_to_reuse[-1] + (idx - len(orders_to_reuse) + 1) if orders_to_reuse else milestone.order + idx + 1
+        new_m = Milestone(
+            learning_path_id=path.id,
+            title=md.get("title", f"Milestone {new_order + 1}"),
+            description=md.get("description", ""),
+            order=new_order,
+            estimated_hours=md.get("estimated_hours", 0) or 0,
+            resources=json.dumps(md.get("resources", [])),
+            completed=False,
+        )
+        db.add(new_m)
+        db.flush()
+        created.append(new_m)
+
+    db.commit()
+    db.refresh(path)
+
+    # AP3 — enrich the regenerated milestones in background
+    for m in created:
+        background_tasks.add_task(
+            enrich_milestone_resources,
+            m.id, m.title, m.description, goal,
+        )
+
+    return _build_path_response(path)
