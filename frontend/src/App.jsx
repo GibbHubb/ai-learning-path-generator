@@ -94,6 +94,11 @@ function App() {
         );
     }
 
+    // AP7 — total duration badge on the resume banner
+    const resumeTotalHours = resumePrompt && Array.isArray(resumePrompt.milestones)
+        ? resumePrompt.milestones.reduce((s, m) => s + (m.estimated_hours || 0), 0)
+        : 0;
+
     return (
         <div className="app">
             {/* Resume-path banner */}
@@ -102,6 +107,9 @@ function App() {
                     <p>
                         Resume your learning path on{' '}
                         <strong>{resumePrompt.title}</strong>?
+                        {resumeTotalHours > 0 && (
+                            <span className="duration-badge">⏱ {resumeTotalHours}h</span>
+                        )}
                     </p>
                     <div className="resume-banner-actions">
                         <button className="btn btn-primary" onClick={handleResume}>

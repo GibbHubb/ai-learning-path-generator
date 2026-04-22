@@ -133,6 +133,8 @@ export default function ExplorePage({ onBack }) {
                                         <div className="explore-card-meta">
                                             <span className="badge badge-primary">{p.experience_level}</span>
                                             <span className="meta-item">📋 {p.milestone_count} milestones</span>
+                                            {/* AP7 — total hours on each card */}
+                                            <span className="duration-badge">⏱ {p.total_hours}h</span>
                                         </div>
                                     </article>
                                 ))}
