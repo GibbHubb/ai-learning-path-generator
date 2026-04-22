@@ -1,0 +1,118 @@
+.explore-page {
+    min-height: 100vh;
+    padding: var(--spacing-xl) var(--spacing-md);
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.explore-header {
+    padding: var(--spacing-xl);
+    margin-bottom: var(--spacing-lg);
+    position: relative;
+}
+
+.explore-category {
+    margin-bottom: var(--spacing-lg);
+}
+
+.explore-category-header {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-md) var(--spacing-lg);
+    margin-bottom: var(--spacing-sm);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: var(--font-size-lg);
+    font-weight: 700;
+    transition: background 120ms ease;
+}
+
+.explore-category-header:hover {
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.explore-category-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.explore-category-icon {
+    font-size: 22px;
+}
+
+.explore-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: rgba(99, 102, 241, 0.25);
+    color: #c7d2fe;
+    font-size: 12px;
+    font-weight: 800;
+    margin-left: 4px;
+}
+
+.explore-chevron {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.explore-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--spacing-md);
+}
+
+.explore-card {
+    padding: var(--spacing-lg);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    transition: transform 150ms ease, border-color 150ms ease;
+    border: 1px solid transparent;
+    outline: none;
+}
+
+.explore-card:hover,
+.explore-card:focus-visible {
+    transform: translateY(-2px);
+    border-color: rgba(99, 102, 241, 0.4);
+}
+
+.explore-card-title {
+    font-size: var(--font-size-lg);
+    margin: 0;
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.explore-card-desc {
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.explore-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-top: auto;
+}

@@ -34,10 +34,13 @@ Generate a comprehensive learning path with 5-8 major milestones. For each miles
 3. Estimated hours to complete
 4. 2-3 specific resource recommendations (books, courses, websites, or practice projects)
 
+Also classify the path into exactly ONE of these categories: "Programming", "Design", "Business", "Science", "Creative", "Language", "Other".
+
 Return your response as a JSON object with this exact structure:
 {{
   "path_title": "A compelling title for this learning path",
   "path_description": "A brief overview of what this learning path covers and why it's structured this way",
+  "category": "Programming",
   "milestones": [
     {{
       "title": "Milestone title",
@@ -48,7 +51,7 @@ Return your response as a JSON object with this exact structure:
   ]
 }}
 
-Make the path progressive - each milestone should build on previous ones. Be specific and actionable."""
+Make the path progressive - each milestone should build on previous ones. Be specific and actionable. The `category` field MUST be one of the seven allowed values, with exact casing."""
 
     try:
         response = client.chat.completions.create(

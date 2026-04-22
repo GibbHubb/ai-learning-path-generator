@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import LandingPage from './components/LandingPage';
 import LearningPath from './components/LearningPath';
 import SharePathPage from './components/SharePathPage';
+import ExplorePage from './components/ExplorePage';
 import './index.css';
 
 const API_BASE = 'http://localhost:8000/api';
@@ -12,16 +13,23 @@ function getSharePathId() {
     return match ? parseInt(match[1], 10) : null;
 }
 
+// Check if the URL is the explore page
+function isExploreUrl() {
+    return /^\/explore\/?$/.test(window.location.pathname);
+}
+
 function App() {
     const sharePathId = getSharePathId();
+    const exploreRoute = isExploreUrl();
+    const initialView = sharePathId ? 'share' : (exploreRoute ? 'explore' : 'landing');
     const [currentPath, setCurrentPath] = useState(null);
-    const [view, setView] = useState(sharePathId ? 'share' : 'landing');
+    const [view, setView] = useState(initialView);
     const [existingPaths, setExistingPaths] = useState([]);
     const [resumePrompt, setResumePrompt] = useState(null);
 
     // On mount: fetch existing paths to power the resume prompt
     useEffect(() => {
-        if (sharePathId) return; // Skip for share pages
+        if (sharePathId || exploreRoute) return; // Skip for share/explore pages
         fetch(`${API_BASE}/paths`)
             .then((r) => r.json())
             .then((paths) => {
@@ -58,11 +66,30 @@ function App() {
         setCurrentPath(null);
     };
 
+    const handleExplore = () => {
+        window.history.pushState({}, '', '/explore');
+        setView('explore');
+    };
+
+    const handleBackFromExplore = () => {
+        window.history.pushState({}, '', '/');
+        setView('landing');
+    };
+
     // AP2 — render shared path page
     if (view === 'share' && sharePathId) {
         return (
             <div className="app">
                 <SharePathPage pathId={sharePathId} />
+            </div>
+        );
+    }
+
+    // AP6 — render explore page
+    if (view === 'explore') {
+        return (
+            <div className="app">
+                <ExplorePage onBack={handleBackFromExplore} />
             </div>
         );
     }
@@ -88,7 +115,7 @@ function App() {
             )}
 
             {view === 'landing' ? (
-                <LandingPage onPathGenerated={handlePathGenerated} />
+                <LandingPage onPathGenerated={handlePathGenerated} onExplore={handleExplore} />
             ) : (
                 <LearningPath
                     pathData={currentPath}

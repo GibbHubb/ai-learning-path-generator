@@ -15,6 +15,7 @@ class LearningPath(Base):
     total_xp = Column(Integer, default=0, nullable=False)
     streak_days = Column(Integer, default=0, nullable=False)
     last_active_date = Column(Date, nullable=True)
+    category = Column(String, nullable=True)  # AP6: "Programming" | "Design" | "Business" | "Science" | "Creative" | "Language" | "Other"
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

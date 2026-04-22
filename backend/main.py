@@ -26,6 +26,9 @@ with engine.connect() as conn:
         conn.execute(text("ALTER TABLE learning_paths ADD COLUMN streak_days INTEGER NOT NULL DEFAULT 0"))
     if "last_active_date" not in cols:
         conn.execute(text("ALTER TABLE learning_paths ADD COLUMN last_active_date DATE"))
+    # AP6 — category column on learning_paths
+    if "category" not in cols:
+        conn.execute(text("ALTER TABLE learning_paths ADD COLUMN category VARCHAR"))
 
     milestone_cols = {c["name"] for c in inspect(engine).get_columns("milestones")}
     # AP5 — difficulty_feedback column on milestones

@@ -3,7 +3,7 @@ import './LandingPage.css';
 
 const API_BASE = 'http://localhost:8000/api';
 
-const LandingPage = ({ onPathGenerated }) => {
+const LandingPage = ({ onPathGenerated, onExplore }) => {
     const [formData, setFormData] = useState({
         goal: '',
         experience_level: 'beginner',
@@ -101,6 +101,15 @@ const LandingPage = ({ onPathGenerated }) => {
                 <div className="hero-content">
                     <div className="hero-badge fade-in">
                         <span className="badge badge-primary">✨ AI-Powered Learning</span>
+                        {onExplore && (
+                            <button
+                                type="button"
+                                className="btn btn-secondary btn-explore-link"
+                                onClick={onExplore}
+                            >
+                                🧭 Explore public paths
+                            </button>
+                        )}
                     </div>
 
                     <h1 className="hero-title fade-in">

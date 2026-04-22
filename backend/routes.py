@@ -51,6 +51,7 @@ class LearningPathResponse(BaseModel):
     is_public: bool
     total_xp: int
     streak_days: int
+    category: Optional[str] = None  # AP6
     created_at: datetime
     milestones: List[MilestoneResponse]
 
@@ -104,6 +105,7 @@ def _build_path_response(path: LearningPath) -> LearningPathResponse:
         is_public=path.is_public if path.is_public is not None else False,
         total_xp=path.total_xp if path.total_xp is not None else 0,
         streak_days=path.streak_days if path.streak_days is not None else 0,
+        category=getattr(path, "category", None),  # AP6
         created_at=path.created_at,
         milestones=sorted([_build_milestone_response(m) for m in path.milestones], key=lambda x: x.order),
     )
@@ -136,6 +138,7 @@ async def create_learning_path_endpoint(
             description=ai_result["path_description"],
             experience_level=path_data.experience_level,
             time_commitment=path_data.time_commitment,
+            category=ai_result.get("category", "Other"),  # AP6
         )
         db.add(db_path)
         db.flush()
@@ -191,6 +194,7 @@ async def generate_stream(
                 description=ai_result["path_description"],
                 experience_level=path_data.experience_level,
                 time_commitment=path_data.time_commitment,
+                category=ai_result.get("category", "Other"),  # AP6
             )
             db.add(db_path)
             db.flush()
@@ -237,6 +241,7 @@ async def generate_stream(
                 "is_public": False,
                 "total_xp": 0,
                 "streak_days": 0,
+                "category": db_path.category,  # AP6
                 "created_at": db_path.created_at.isoformat(),
                 "milestones": [
                     {
@@ -476,3 +481,39 @@ async def milestone_feedback(
         )
 
     return _build_path_response(path)
+
+
+# AP6 — discovery / explore public paths grouped by category
+@router.get("/explore")
+async def explore_public_paths(db: Session = Depends(get_db)):
+    """Return all public learning paths grouped by category.
+
+    Shape: {"Programming": [path1, path2], "Design": [...], ...}
+    """
+    public_paths = (
+        db.query(LearningPath)
+        .filter(LearningPath.is_public == True)  # noqa: E712
+        .order_by(LearningPath.created_at.desc())
+        .all()
+    )
+
+    grouped: dict = {}
+    for p in public_paths:
+        cat = (getattr(p, "category", None) or "Other").strip() or "Other"
+        milestones = sorted(p.milestones, key=lambda m: m.order)
+        total_hours = sum((m.estimated_hours or 0) for m in milestones)
+        card = {
+            "id": p.id,
+            "title": p.title,
+            "description": p.description,
+            "experience_level": p.experience_level,
+            "time_commitment": p.time_commitment,
+            "category": cat,
+            "total_xp": p.total_xp or 0,
+            "milestone_count": len(milestones),
+            "total_hours": total_hours,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+        }
+        grouped.setdefault(cat, []).append(card)
+
+    return grouped

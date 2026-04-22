@@ -22,6 +22,17 @@
 .hero-badge {
     margin-bottom: var(--spacing-md);
     animation-delay: 0.1s;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.btn-explore-link {
+    padding: 4px 12px;
+    font-size: 13px;
+    border-radius: 999px;
 }
 
 .hero-title {
