@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { downloadMarkdown } from '../utils/exportMarkdown';
+import { downloadMarkdown, downloadIcs } from '../utils/exportMarkdown';
 import MilestoneNotes from './MilestoneNotes';
 import MilestoneTasks from './MilestoneTasks';
 import QuizModal from './QuizModal';
@@ -230,6 +230,17 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
                         </button>
                         <button className="btn btn-export" onClick={handleExport}>
                             📥 Export .md
+                        </button>
+                        {/* AP25 — calendar export */}
+                        <button
+                            className="btn btn-secondary"
+                            onClick={async () => {
+                                try { await downloadIcs(API_BASE, pathData.id); }
+                                catch (err) { console.warn('Calendar export failed', err); }
+                            }}
+                            title="Download an .ics calendar file"
+                        >
+                            📅 Add to calendar
                         </button>
                         {/* AP24 — version history (owner only) */}
                         {user && (

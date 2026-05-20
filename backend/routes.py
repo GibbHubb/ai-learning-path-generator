@@ -1,7 +1,8 @@
 import logging
+import re
 from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request, Response
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
@@ -29,6 +30,7 @@ from reminders import (
 from quizzes import grade_attempt, get_or_generate_quiz, PASS_THRESHOLD  # noqa: F401
 from models import MilestoneQuiz, QuizAttempt
 import json as _json_for_quiz
+from scheduling import estimate_schedule  # AP25
 
 logger = logging.getLogger(__name__)
 
@@ -614,6 +616,41 @@ async def get_path(path_id: int, db: Session = Depends(get_db)):
     if not path:
         raise HTTPException(status_code=404, detail="Learning path not found")
     return _build_path_response(path)
+
+
+# AP25 — calendar export. Mirrors GET /paths/{id}'s open access pattern.
+@router.get("/paths/{path_id}/calendar.ics")
+async def export_path_calendar(path_id: int, db: Session = Depends(get_db)):
+    """Build an .ics download of the path's milestones scheduled from
+    today across `estimate_schedule`'s span. All-day VEVENTs, one per
+    milestone, RFC-5545 valid."""
+    from icalendar import Calendar, Event  # local import — keeps cold-start light
+    path = db.query(LearningPath).filter(LearningPath.id == path_id).first()
+    if not path:
+        raise HTTPException(status_code=404, detail="Learning path not found")
+
+    _finish, schedule = estimate_schedule(path.milestones, path.time_commitment)
+
+    cal = Calendar()
+    cal.add("prodid", "-//ai-learning-path-generator//AP25//EN")
+    cal.add("version", "2.0")
+    for m, d in schedule:
+        ev = Event()
+        ev.add("uid", f"path-{path.id}-milestone-{m.id}@ai-learning-path")
+        ev.add("summary", (m.title or "Milestone").strip())
+        if m.description:
+            ev.add("description", m.description.strip())
+        ev.add("dtstart", d)  # date (all-day)
+        ev.add("dtend", d + timedelta(days=1))  # exclusive end for all-day
+        cal.add_component(ev)
+
+    body = cal.to_ical()
+    slug = re.sub(r"[^A-Za-z0-9_-]+", "-", (path.title or "learning-path"))[:60].strip("-") or "learning-path"
+    return Response(
+        content=body,
+        media_type="text/calendar",
+        headers={"Content-Disposition": f'attachment; filename="{slug}.ics"'},
+    )
 
 
 # AP2 — public read-only endpoint (no auth)

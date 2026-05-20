@@ -35,14 +35,31 @@ export function buildMarkdown(path) {
   return lines.join('\n');
 }
 
-export function downloadMarkdown(path) {
-  const md = buildMarkdown(path);
-  const slug = path.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-  const blob = new Blob([md], { type: 'text/markdown' });
+function triggerBlobDownload(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${slug}.md`;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+export function downloadMarkdown(path) {
+  const md = buildMarkdown(path);
+  const slug = path.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  triggerBlobDownload(new Blob([md], { type: 'text/markdown' }), `${slug}.md`);
+}
+
+// AP25 — fetch the server-built .ics and download it. apiBase is passed
+// rather than imported so this module stays free of env-config concerns.
+export async function downloadIcs(apiBase, pathId) {
+  const res = await fetch(`${apiBase}/paths/${pathId}/calendar.ics`, { credentials: 'include' });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch calendar: ${res.status}`);
+  }
+  const blob = await res.blob();
+  const cd = res.headers.get('content-disposition') || '';
+  const match = cd.match(/filename="?([^";]+)"?/i);
+  const filename = match ? match[1] : 'learning-path.ics';
+  triggerBlobDownload(blob, filename);
 }

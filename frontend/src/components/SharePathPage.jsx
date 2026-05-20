@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { forkPath, getPublicNotes } from '../services/auth';
+import { downloadIcs } from '../utils/exportMarkdown';
 import './LearningPath.css';
 
 const API_BASE = 'http://localhost:8000/api';
@@ -77,15 +78,29 @@ export default function SharePathPage({ pathId, user, onSignIn, onForked }) {
                 <div className="path-header-content">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '0.5rem' }}>
                         <span className="badge badge-primary">Shared Path</span>
-                        <button
-                            className="btn btn-primary"
-                            onClick={handleFork}
-                            disabled={forking}
-                            title={user ? 'Make your own editable copy' : 'Sign in to fork'}
-                            style={{ whiteSpace: 'nowrap' }}
-                        >
-                            {forking ? 'Forking…' : (user ? '🍴 Fork this path' : 'Sign in to fork')}
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            {/* AP25 — calendar export (also available on public paths) */}
+                            <button
+                                className="btn btn-secondary"
+                                onClick={async () => {
+                                    try { await downloadIcs(API_BASE, path.id); }
+                                    catch (err) { console.warn('Calendar export failed', err); }
+                                }}
+                                title="Download an .ics calendar file"
+                                style={{ whiteSpace: 'nowrap' }}
+                            >
+                                📅 Add to calendar
+                            </button>
+                            <button
+                                className="btn btn-primary"
+                                onClick={handleFork}
+                                disabled={forking}
+                                title={user ? 'Make your own editable copy' : 'Sign in to fork'}
+                                style={{ whiteSpace: 'nowrap' }}
+                            >
+                                {forking ? 'Forking…' : (user ? '🍴 Fork this path' : 'Sign in to fork')}
+                            </button>
+                        </div>
                     </div>
                     <h1 className="path-title">{path.title}</h1>
                     {path.current_version && (
