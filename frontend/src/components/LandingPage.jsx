@@ -22,6 +22,7 @@ const LandingPage = ({ onPathGenerated, onExplore }) => {
         try {
             const response = await fetch(`${API_BASE}/generate/stream`, {
                 method: 'POST',
+                credentials: 'include',  // AP9 — carry session cookie + anon_id cookie
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData),
             });

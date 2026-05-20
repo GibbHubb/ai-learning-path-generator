@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { forkPath, getPublicNotes } from '../services/auth';
 import './LearningPath.css';
 
 const API_BASE = 'http://localhost:8000/api';
@@ -13,10 +14,13 @@ function parseResource(r) {
 
 const TYPE_ICON = { video: '🎬', docs: '📖', article: '📰' };
 
-export default function SharePathPage({ pathId }) {
+export default function SharePathPage({ pathId, user, onSignIn, onForked }) {
     const [path, setPath] = useState(null);
     const [error, setError] = useState(null);
     const [expandedMilestone, setExpandedMilestone] = useState(null);
+    const [forking, setForking] = useState(false);
+    const [forkError, setForkError] = useState('');
+    const [publicNotes, setPublicNotes] = useState({});  // AP12 — { milestone_id: [{content, author, updated_at}] }
 
     useEffect(() => {
         fetch(`${API_BASE}/paths/${pathId}/public`)
@@ -26,7 +30,23 @@ export default function SharePathPage({ pathId }) {
             })
             .then(setPath)
             .catch((e) => setError(e.message));
+        // AP12 — fire-and-forget; failure is OK (notes simply don't render)
+        getPublicNotes(pathId).then(setPublicNotes).catch(() => {});
     }, [pathId]);
+
+    const handleFork = async () => {
+        if (!user) { onSignIn && onSignIn(); return; }
+        setForking(true);
+        setForkError('');
+        try {
+            const newPath = await forkPath(pathId);
+            if (onForked) onForked(newPath);
+        } catch (err) {
+            setForkError(err.message || 'Could not fork this path.');
+        } finally {
+            setForking(false);
+        }
+    };
 
     if (error) {
         return (
@@ -55,9 +75,21 @@ export default function SharePathPage({ pathId }) {
         <div className="learning-path-container">
             <div className="path-header glass-card fade-in">
                 <div className="path-header-content">
-                    <span className="badge badge-primary" style={{ marginBottom: '0.5rem' }}>Shared Path</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '0.5rem' }}>
+                        <span className="badge badge-primary">Shared Path</span>
+                        <button
+                            className="btn btn-primary"
+                            onClick={handleFork}
+                            disabled={forking}
+                            title={user ? 'Make your own editable copy' : 'Sign in to fork'}
+                            style={{ whiteSpace: 'nowrap' }}
+                        >
+                            {forking ? 'Forking…' : (user ? '🍴 Fork this path' : 'Sign in to fork')}
+                        </button>
+                    </div>
                     <h1 className="path-title">{path.title}</h1>
                     <p className="path-description">{path.description}</p>
+                    {forkError && <p style={{ color: '#f87171', marginTop: '0.5rem' }}>{forkError}</p>}
                     <div className="path-meta">
                         <span className="badge badge-primary">{path.experience_level}</span>
                         <span className="meta-item">⏱️ {path.time_commitment}</span>
@@ -126,6 +158,28 @@ export default function SharePathPage({ pathId }) {
                                             })}
                                         </div>
                                     </div>
+
+                                    {/* AP12 — public reflections from forkers / followers */}
+                                    {(publicNotes[milestone.id] || publicNotes[String(milestone.id)] || []).length > 0 && (
+                                        <div className="milestone-reflections" style={{ marginTop: '1rem' }}>
+                                            <h4>Reflections from learners</h4>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                {(publicNotes[milestone.id] || publicNotes[String(milestone.id)] || []).map((n, i) => (
+                                                    <div key={i} style={{
+                                                        background: 'rgba(255,255,255,0.04)',
+                                                        border: '1px solid rgba(255,255,255,0.08)',
+                                                        borderRadius: '8px',
+                                                        padding: '0.6rem 0.8rem',
+                                                    }}>
+                                                        <p style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>{n.content}</p>
+                                                        <p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem', color: '#64748b' }}>
+                                                            — {n.author}
+                                                        </p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 

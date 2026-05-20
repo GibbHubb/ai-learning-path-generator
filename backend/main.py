@@ -29,6 +29,28 @@ with engine.connect() as conn:
     # AP6 — category column on learning_paths
     if "category" not in cols:
         conn.execute(text("ALTER TABLE learning_paths ADD COLUMN category VARCHAR"))
+    # AP9 — ownership columns on learning_paths
+    if "user_id" not in cols:
+        conn.execute(text("ALTER TABLE learning_paths ADD COLUMN user_id INTEGER"))
+    if "anon_session_id" not in cols:
+        conn.execute(text("ALTER TABLE learning_paths ADD COLUMN anon_session_id VARCHAR"))
+    # AP10 — fork lineage
+    if "forked_from_id" not in cols:
+        conn.execute(text("ALTER TABLE learning_paths ADD COLUMN forked_from_id INTEGER"))
+    if "original_author_id" not in cols:
+        conn.execute(text("ALTER TABLE learning_paths ADD COLUMN original_author_id INTEGER"))
+    if "fork_count" not in cols:
+        conn.execute(text("ALTER TABLE learning_paths ADD COLUMN fork_count INTEGER NOT NULL DEFAULT 0"))
+
+    # AP11 — reminder opt-in + bookkeeping on users (the table exists since AP9)
+    if inspect(engine).has_table("users"):
+        user_cols = {c["name"] for c in inspect(engine).get_columns("users")}
+        if "reminder_opt_in" not in user_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN reminder_opt_in BOOLEAN NOT NULL DEFAULT 0"))
+        if "reminder_sent_at" not in user_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN reminder_sent_at DATETIME"))
+        if "no_activity_reminders_sent" not in user_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN no_activity_reminders_sent INTEGER NOT NULL DEFAULT 0"))
 
     milestone_cols = {c["name"] for c in inspect(engine).get_columns("milestones")}
     # AP5 — difficulty_feedback column on milestones
@@ -44,10 +66,15 @@ app = FastAPI(
 )
 
 # Configure CORS
+import os as _os
+_cors_origins = _os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:5173,http://localhost:3000",
+).split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Vite default port
-    allow_credentials=True,
+    allow_origins=[o.strip() for o in _cors_origins if o.strip()],
+    allow_credentials=True,  # AP9 — required so the session cookie crosses origins
     allow_methods=["*"],
     allow_headers=["*"],
 )

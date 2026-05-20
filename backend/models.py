@@ -3,6 +3,45 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
 
+
+# AP9 — User accounts (magic-link auth)
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_login_at = Column(DateTime, nullable=True)
+    # AP11 — daily reminder email opt-in + bookkeeping
+    reminder_opt_in = Column(Boolean, default=False, nullable=False)
+    reminder_sent_at = Column(DateTime, nullable=True)
+    no_activity_reminders_sent = Column(Integer, default=0, nullable=False)
+
+
+class MagicLink(Base):
+    """Single-use, short-lived magic-link token. Stores sha256 of the token,
+    never the raw value. Plain token only travels in the verification URL."""
+    __tablename__ = "magic_links"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, index=True, nullable=False)
+    token_hash = Column(String, index=True, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    used_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Session(Base):
+    """Server-side session record. The session_id is an opaque UUID stored
+    directly in an HttpOnly cookie — opaque + DB-backed lets us invalidate."""
+    __tablename__ = "sessions"
+
+    id = Column(String, primary_key=True)  # uuid4 hex
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class LearningPath(Base):
     __tablename__ = "learning_paths"
 
@@ -16,6 +55,13 @@ class LearningPath(Base):
     streak_days = Column(Integer, default=0, nullable=False)
     last_active_date = Column(Date, nullable=True)
     category = Column(String, nullable=True)  # AP6: "Programming" | "Design" | "Business" | "Science" | "Creative" | "Language" | "Other"
+    # AP9 — ownership
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    anon_session_id = Column(String, nullable=True, index=True)  # browser-cookie id for the claim flow
+    # AP10 — fork lineage (nearest ancestor; original author derived once on fork)
+    forked_from_id = Column(Integer, ForeignKey("learning_paths.id"), nullable=True)
+    original_author_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    fork_count = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -36,3 +82,61 @@ class Milestone(Base):
     difficulty_feedback = Column(String, nullable=True)  # AP5: "too_easy" | "too_hard" | None
 
     learning_path = relationship("LearningPath", back_populates="milestones")
+    notes = relationship("MilestoneNote", back_populates="milestone", cascade="all, delete-orphan")
+
+
+# AP8 — cached MCQ set per milestone (one row per milestone).
+# `questions_json` holds the full quiz INCLUDING correct_index +
+# explanations. Plan §5 chose client-side grading for speed; server still
+# re-grades on attempt-submit so the score in the DB is authoritative.
+class MilestoneQuiz(Base):
+    __tablename__ = "milestone_quizzes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    milestone_id = Column(Integer, ForeignKey("milestones.id"), nullable=False, unique=True, index=True)
+    questions_json = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# AP8 — audit row per quiz submission (drives AP5 difficulty signal too).
+class QuizAttempt(Base):
+    __tablename__ = "quiz_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    milestone_id = Column(Integer, ForeignKey("milestones.id"), nullable=False, index=True)
+    score = Column(Float, nullable=False)            # 0.0 .. 1.0
+    passed = Column(Boolean, nullable=False)
+    completed_at = Column(DateTime, default=datetime.utcnow)
+
+
+# AP11 — audit row per outbound reminder email (debug + analytics).
+class ReminderLog(Base):
+    __tablename__ = "reminder_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    path_id = Column(Integer, ForeignKey("learning_paths.id"), nullable=True)
+    sent_at = Column(DateTime, default=datetime.utcnow)
+    status = Column(String, default="sent", nullable=False)  # 'sent' | 'failed' | 'skipped'
+    note = Column(Text, nullable=True)
+
+
+# AP12 — per-user free-text reflection on a milestone. One row per
+# (milestone_id, user_id). `is_private` controls visibility on /share/:id.
+# `difficulty_flag` is a small heuristic signal AP5 may consume:
+#   -1 = "too easy"  ·  0 = neutral  ·  +1 = hard  ·  +2 = confused/stuck
+class MilestoneNote(Base):
+    __tablename__ = "milestone_notes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    milestone_id = Column(Integer, ForeignKey("milestones.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    content = Column(Text, nullable=False)
+    is_private = Column(Boolean, default=False, nullable=False)
+    difficulty_flag = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    milestone = relationship("Milestone", back_populates="notes")

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { downloadMarkdown } from '../utils/exportMarkdown';
+import MilestoneNotes from './MilestoneNotes';
+import QuizModal from './QuizModal';
 import './LearningPath.css';
 
 const API_BASE = 'http://localhost:8000/api';
@@ -15,7 +17,7 @@ function parseResource(r) {
 
 const TYPE_ICON = { video: '🎬', docs: '📖', article: '📰' };
 
-const LearningPath = ({ pathData, onBack, onRefresh }) => {
+const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
     const [milestones, setMilestones] = useState(pathData.milestones || []);
     const [expandedMilestone, setExpandedMilestone] = useState(null);
     const [totalXp, setTotalXp] = useState(pathData.total_xp || 0);
@@ -26,6 +28,21 @@ const LearningPath = ({ pathData, onBack, onRefresh }) => {
     const [feedbackPromptId, setFeedbackPromptId] = useState(null);
     const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
     const [pathAdjustedFlash, setPathAdjustedFlash] = useState(false);
+    // AP8 — when set, the QuizModal renders for this milestone id
+    const [quizForMilestoneId, setQuizForMilestoneId] = useState(null);
+
+    // AP8 — local-state patch when a quiz attempt passes (called from QuizModal).
+    // The server has already marked the milestone complete + recomputed XP/streak.
+    const handleQuizPassed = (result) => {
+        if (!quizForMilestoneId) return;
+        setMilestones((prev) => prev.map((m) =>
+            m.id === quizForMilestoneId ? { ...m, completed: true } : m
+        ));
+        if (typeof result.total_xp === 'number') setTotalXp(result.total_xp);
+        if (typeof result.streak_days === 'number') setStreakDays(result.streak_days);
+        // AP5 — surface the feedback prompt the same way toggleComplete does
+        setFeedbackPromptId(quizForMilestoneId);
+    };
 
     const toggleMilestone = (milestoneId) => {
         setExpandedMilestone(expandedMilestone === milestoneId ? null : milestoneId);
@@ -110,6 +127,14 @@ const LearningPath = ({ pathData, onBack, onRefresh }) => {
 
     return (
         <div className="learning-path-container">
+            {/* AP8 — quiz modal portal */}
+            {quizForMilestoneId && (
+                <QuizModal
+                    milestoneId={quizForMilestoneId}
+                    onClose={() => setQuizForMilestoneId(null)}
+                    onPassed={handleQuizPassed}
+                />
+            )}
             {pathAdjustedFlash && (
                 <div className="path-adjusted-flash glass-card fade-in">
                     ✨ Path adjusted!
@@ -270,6 +295,41 @@ const LearningPath = ({ pathData, onBack, onRefresh }) => {
                                         </div>
                                         <p className="resource-disclaimer">Links are AI-suggested — verify before using.</p>
                                     </div>
+
+                                    {/* AP8 — gated milestone completion via quiz. Signed-in users
+                                        complete via quiz; signed-out fallback is the existing
+                                        toggleComplete checkbox handler that's wired further up. */}
+                                    {!milestone.completed && (
+                                        <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                            {user ? (
+                                                <button
+                                                    className="btn btn-primary"
+                                                    onClick={() => setQuizForMilestoneId(milestone.id)}
+                                                >
+                                                    🎯 Take quiz to complete
+                                                </button>
+                                            ) : (
+                                                <button className="btn btn-secondary" onClick={onSignIn}>
+                                                    Sign in to take the comprehension quiz
+                                                </button>
+                                            )}
+                                            <button
+                                                className="btn btn-ghost"
+                                                onClick={() => toggleComplete(milestone)}
+                                                style={{ fontSize: '0.8rem', color: '#94a3b8', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                                title="Skip the quiz and just mark complete"
+                                            >
+                                                or skip the quiz
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* AP12 — per-milestone reflection field */}
+                                    <MilestoneNotes
+                                        milestoneId={milestone.id}
+                                        signedIn={!!user}
+                                        onSignIn={onSignIn}
+                                    />
                                 </div>
                             )}
 
