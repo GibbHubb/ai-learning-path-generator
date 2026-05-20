@@ -9,7 +9,7 @@ from datetime import datetime
 import json
 
 from database import get_db
-from models import LearningPath, Milestone, MilestoneNote, User
+from models import LearningPath, Milestone, MilestoneNote, MilestoneTask, User
 from ai_service import generate_learning_path, stream_learning_path, enrich_milestone_resources, adjust_difficulty
 from auth import (
     SESSION_COOKIE,
@@ -47,6 +47,17 @@ class LearningPathCreate(BaseModel):
     experience_level: str
     time_commitment: str
 
+class MilestoneTaskOut(BaseModel):
+    id: int
+    order: int
+    title: str
+    completed: bool
+    completed_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
 class MilestoneResponse(BaseModel):
     id: int
     title: str
@@ -56,6 +67,7 @@ class MilestoneResponse(BaseModel):
     resources: List[str]
     completed: bool
     completed_at: Optional[datetime]
+    tasks: List[MilestoneTaskOut] = []  # AP23
 
     class Config:
         from_attributes = True
@@ -78,6 +90,16 @@ class LearningPathResponse(BaseModel):
 
 class MilestoneUpdate(BaseModel):
     completed: bool
+
+
+# AP23 — sub-task payloads
+class MilestoneTaskCreate(BaseModel):
+    title: str
+
+
+class MilestoneTaskUpdate(BaseModel):
+    completed: Optional[bool] = None
+    title: Optional[str] = None
 
 class ShareUpdate(BaseModel):
     is_public: bool = True
@@ -175,7 +197,40 @@ def _build_milestone_response(m: Milestone) -> MilestoneResponse:
         id=m.id, title=m.title, description=m.description,
         order=m.order, estimated_hours=m.estimated_hours,
         resources=flat, completed=m.completed, completed_at=m.completed_at,
+        tasks=[MilestoneTaskOut.model_validate(t) for t in sorted(m.tasks, key=lambda t: t.order)],  # AP23
     )
+
+
+# AP23 — single source of truth for "milestone completion + XP/streak +
+# inactivity reset". Used by the manual PATCH, the quiz-pass auto-complete,
+# and the sub-task last-tick auto-complete (and its reverse) so all three
+# paths move XP/streak identically.
+#
+# Streak rule on uncomplete: matches the pre-existing PATCH behaviour —
+# streak/last_active_date are NOT reversed (streak counts an active day,
+# which still happened). Only completed/completed_at + total_xp change.
+def complete_milestone(milestone: Milestone, completed: bool, db: Session) -> tuple[int, int]:
+    milestone.completed = completed
+    milestone.completed_at = datetime.utcnow() if completed else None
+
+    path = db.query(LearningPath).filter(LearningPath.id == milestone.learning_path_id).first()
+    if not path:
+        return (0, 0)
+
+    all_milestones = db.query(Milestone).filter(Milestone.learning_path_id == path.id).all()
+    path.total_xp = 10 * sum(1 for m in all_milestones if m.completed)
+
+    if completed:
+        today = date.today()
+        if path.last_active_date == today - timedelta(days=1):
+            path.streak_days = (path.streak_days or 0) + 1
+        elif path.last_active_date != today:
+            path.streak_days = 1
+        path.last_active_date = today
+        if path.user_id:
+            reset_inactivity_counter(path.user_id, db)
+
+    return (path.total_xp, path.streak_days or 0)
 
 
 def _build_path_response(path: LearningPath) -> LearningPathResponse:
@@ -507,37 +562,26 @@ async def share_path(path_id: int, body: ShareUpdate, db: Session = Depends(get_
     return _build_path_response(path)
 
 
-# AP4 — milestone completion with XP + streak
+# AP4 — milestone completion with XP + streak (delegates to complete_milestone)
 @router.patch("/milestones/{milestone_id}")
 async def update_milestone(milestone_id: int, update: MilestoneUpdate, db: Session = Depends(get_db)):
-    """Update milestone completion status + recompute XP and streak."""
+    """Update milestone completion status + recompute XP and streak.
+
+    AP23: when sub-tasks exist, manual (un)complete cascades to every task
+    so task-state and milestone-state stay coherent.
+    """
     milestone = db.query(Milestone).filter(Milestone.id == milestone_id).first()
     if not milestone:
         raise HTTPException(status_code=404, detail="Milestone not found")
 
-    milestone.completed = update.completed
-    milestone.completed_at = datetime.utcnow() if update.completed else None
+    total_xp, streak_days = complete_milestone(milestone, update.completed, db)
 
-    # Recompute XP and streak on the parent path
-    path = db.query(LearningPath).filter(LearningPath.id == milestone.learning_path_id).first()
-    if path:
-        all_milestones = db.query(Milestone).filter(Milestone.learning_path_id == path.id).all()
-        path.total_xp = 10 * sum(1 for m in all_milestones if m.completed or (m.id == milestone_id and update.completed))
-        # Adjust for the current milestone being toggled (it hasn't been committed yet)
-        # Actually the milestone.completed is already set above, so just count from current state
-        path.total_xp = 10 * sum(1 for m in all_milestones if m.completed)
-
-        if update.completed:
-            today = date.today()
-            if path.last_active_date == today - timedelta(days=1):
-                path.streak_days = (path.streak_days or 0) + 1
-            elif path.last_active_date != today:
-                path.streak_days = 1
-            path.last_active_date = today
-            # AP11 — proof of life: clear the silent-reminder streak so
-            # the user doesn't drift into the 90-day cool-off.
-            if path.user_id:
-                reset_inactivity_counter(path.user_id, db)
+    # AP23 (Q2 = yes): manual complete also ticks all tasks; uncomplete unticks.
+    if milestone.tasks:
+        now = datetime.utcnow() if update.completed else None
+        for t in milestone.tasks:
+            t.completed = update.completed
+            t.completed_at = now
 
     db.commit()
 
@@ -545,9 +589,132 @@ async def update_milestone(milestone_id: int, update: MilestoneUpdate, db: Sessi
         "success": True,
         "milestone_id": milestone_id,
         "completed": milestone.completed,
-        "total_xp": path.total_xp if path else 0,
-        "streak_days": path.streak_days if path else 0,
+        "total_xp": total_xp,
+        "streak_days": streak_days,
     }
+
+
+# AP23 — sub-task CRUD. Owner-scoped: the task's milestone must belong to a
+# path owned by the requester. Toggling the *last* incomplete task auto-
+# completes the milestone via complete_milestone(); un-ticking from
+# all-done reverts. Creating a task on an already-completed milestone does
+# NOT auto-uncomplete (user intent preserved).
+def _load_owned_milestone(milestone_id: int, current: User, db: Session) -> Milestone:
+    milestone = db.query(Milestone).filter(Milestone.id == milestone_id).first()
+    if not milestone:
+        raise HTTPException(status_code=404, detail="Milestone not found")
+    path = db.query(LearningPath).filter(LearningPath.id == milestone.learning_path_id).first()
+    if not path or path.user_id != current.id:
+        raise HTTPException(status_code=404, detail="Milestone not found")
+    return milestone
+
+
+def _load_owned_task(task_id: int, current: User, db: Session) -> tuple["MilestoneTask", Milestone]:
+    task = db.query(MilestoneTask).filter(MilestoneTask.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    milestone = _load_owned_milestone(task.milestone_id, current, db)
+    return task, milestone
+
+
+@router.get("/milestones/{milestone_id}/tasks", response_model=List[MilestoneTaskOut])
+async def list_milestone_tasks(
+    milestone_id: int,
+    current: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    milestone = _load_owned_milestone(milestone_id, current, db)
+    return [MilestoneTaskOut.model_validate(t) for t in sorted(milestone.tasks, key=lambda t: t.order)]
+
+
+@router.post("/milestones/{milestone_id}/tasks", response_model=MilestoneTaskOut)
+async def create_milestone_task(
+    milestone_id: int,
+    payload: MilestoneTaskCreate,
+    current: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    milestone = _load_owned_milestone(milestone_id, current, db)
+    title = (payload.title or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Task title is required")
+    next_order = (max((t.order for t in milestone.tasks), default=-1) + 1)
+    task = MilestoneTask(milestone_id=milestone.id, order=next_order, title=title)
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+    return MilestoneTaskOut.model_validate(task)
+
+
+@router.patch("/tasks/{task_id}")
+async def update_milestone_task(
+    task_id: int,
+    payload: MilestoneTaskUpdate,
+    current: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    task, milestone = _load_owned_task(task_id, current, db)
+
+    if payload.title is not None:
+        new_title = payload.title.strip()
+        if not new_title:
+            raise HTTPException(status_code=400, detail="Task title cannot be empty")
+        task.title = new_title
+
+    state_changed = False
+    if payload.completed is not None and payload.completed != task.completed:
+        task.completed = payload.completed
+        task.completed_at = datetime.utcnow() if payload.completed else None
+        state_changed = True
+
+    response = {
+        "success": True,
+        "task": None,  # filled below
+        "milestone_auto_completed": False,
+        "milestone_auto_uncompleted": False,
+        "total_xp": None,
+        "streak_days": None,
+    }
+
+    # Auto-derive milestone state from tasks ONLY when a task's completed
+    # state was actually toggled in this request.
+    if state_changed:
+        sibling_tasks = milestone.tasks  # includes the in-session change
+        all_done = all(t.completed for t in sibling_tasks) and len(sibling_tasks) > 0
+        if all_done and not milestone.completed:
+            total_xp, streak_days = complete_milestone(milestone, True, db)
+            response["milestone_auto_completed"] = True
+            response["total_xp"] = total_xp
+            response["streak_days"] = streak_days
+        elif not all_done and milestone.completed:
+            total_xp, streak_days = complete_milestone(milestone, False, db)
+            response["milestone_auto_uncompleted"] = True
+            response["total_xp"] = total_xp
+            response["streak_days"] = streak_days
+
+    db.commit()
+    db.refresh(task)
+    response["task"] = MilestoneTaskOut.model_validate(task)
+    return response
+
+
+@router.delete("/tasks/{task_id}")
+async def delete_milestone_task(
+    task_id: int,
+    current: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    task, milestone = _load_owned_task(task_id, current, db)
+    db.delete(task)
+    db.flush()  # so milestone.tasks reflects the removal
+    # If removing this task makes the remaining set all-complete, auto-complete.
+    remaining = [t for t in milestone.tasks if t.id != task.id]
+    response = {"success": True, "milestone_auto_completed": False}
+    if remaining and all(t.completed for t in remaining) and not milestone.completed:
+        complete_milestone(milestone, True, db)
+        response["milestone_auto_completed"] = True
+    db.commit()
+    return response
 
 
 @router.delete("/paths/{path_id}")
@@ -1014,22 +1181,15 @@ async def submit_quiz_attempt(
     if grade["passed"]:
         milestone = db.query(Milestone).filter(Milestone.id == milestone_id).first()
         if milestone and not milestone.completed:
-            milestone.completed = True
-            milestone.completed_at = datetime.utcnow()
-            path = db.query(LearningPath).filter(LearningPath.id == milestone.learning_path_id).first()
-            if path:
-                all_milestones = db.query(Milestone).filter(Milestone.learning_path_id == path.id).all()
-                path.total_xp = 10 * sum(1 for m in all_milestones if m.completed)
-                today = date.today()
-                if path.last_active_date == today - timedelta(days=1):
-                    path.streak_days = (path.streak_days or 0) + 1
-                elif path.last_active_date != today:
-                    path.streak_days = 1
-                path.last_active_date = today
-                if path.user_id:
-                    reset_inactivity_counter(path.user_id, db)
-                response["total_xp"] = path.total_xp
-                response["streak_days"] = path.streak_days
+            total_xp, streak_days = complete_milestone(milestone, True, db)
+            # AP23: keep tasks coherent (same rule as the manual PATCH path).
+            if milestone.tasks:
+                now = datetime.utcnow()
+                for t in milestone.tasks:
+                    t.completed = True
+                    t.completed_at = now
+            response["total_xp"] = total_xp
+            response["streak_days"] = streak_days
             response["milestone_completed"] = True
 
     db.commit()

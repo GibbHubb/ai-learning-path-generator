@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { downloadMarkdown } from '../utils/exportMarkdown';
 import MilestoneNotes from './MilestoneNotes';
+import MilestoneTasks from './MilestoneTasks';
 import QuizModal from './QuizModal';
 import './LearningPath.css';
 
@@ -323,6 +324,21 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
                                             </button>
                                         </div>
                                     )}
+
+                                    {/* AP23 — sub-task checklist (auto-completes the milestone when full). */}
+                                    <MilestoneTasks
+                                        milestoneId={milestone.id}
+                                        initialTasks={milestone.tasks || []}
+                                        signedIn={!!user}
+                                        onSignIn={onSignIn}
+                                        onMilestoneAutoToggle={({ completed, total_xp, streak_days }) => {
+                                            setMilestones((prev) => prev.map((m) =>
+                                                m.id === milestone.id ? { ...m, completed: !!completed } : m
+                                            ));
+                                            if (typeof total_xp === 'number') setTotalXp(total_xp);
+                                            if (typeof streak_days === 'number') setStreakDays(streak_days);
+                                        }}
+                                    />
 
                                     {/* AP12 — per-milestone reflection field */}
                                     <MilestoneNotes

@@ -83,6 +83,27 @@ class Milestone(Base):
 
     learning_path = relationship("LearningPath", back_populates="milestones")
     notes = relationship("MilestoneNote", back_populates="milestone", cascade="all, delete-orphan")
+    tasks = relationship("MilestoneTask", back_populates="milestone", cascade="all, delete-orphan", order_by="MilestoneTask.order")
+
+
+# AP23 — optional ordered sub-task checklist under a milestone. When tasks
+# exist on a milestone, its `completed` flag is DERIVED from
+# all(tasks.completed) — completing the last open task auto-completes the
+# milestone (same code path as a manual complete, see complete_milestone()
+# in routes.py); un-ticking after auto-complete reverts. Zero-task
+# milestones behave exactly as pre-AP23.
+class MilestoneTask(Base):
+    __tablename__ = "milestone_tasks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    milestone_id = Column(Integer, ForeignKey("milestones.id"), nullable=False, index=True)
+    order = Column(Integer, nullable=False, default=0)
+    title = Column(String, nullable=False)
+    completed = Column(Boolean, nullable=False, default=False)
+    completed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    milestone = relationship("Milestone", back_populates="tasks")
 
 
 # AP8 — cached MCQ set per milestone (one row per milestone).
