@@ -9,7 +9,7 @@ from datetime import datetime
 import json
 
 from database import get_db
-from models import LearningPath, Milestone, MilestoneNote, MilestoneTask, User
+from models import LearningPath, Milestone, MilestoneNote, MilestoneTask, PathRevision, User
 from ai_service import generate_learning_path, stream_learning_path, enrich_milestone_resources, adjust_difficulty
 from auth import (
     SESSION_COOKIE,
@@ -84,6 +84,17 @@ class LearningPathResponse(BaseModel):
     category: Optional[str] = None  # AP6
     created_at: datetime
     milestones: List[MilestoneResponse]
+    current_version: Optional[str] = None  # AP24 — e.g. "v3 — harder"
+
+    class Config:
+        from_attributes = True
+
+
+# AP24 — revisions listing
+class RevisionOut(BaseModel):
+    revision_number: int
+    trigger: str
+    created_at: datetime
 
     class Config:
         from_attributes = True
@@ -243,7 +254,61 @@ def _build_path_response(path: LearningPath) -> LearningPathResponse:
         category=getattr(path, "category", None),  # AP6
         created_at=path.created_at,
         milestones=sorted([_build_milestone_response(m) for m in path.milestones], key=lambda x: x.order),
+        current_version=_current_version_label(path),  # AP24
     )
+
+
+# AP24 — version history helpers.
+def _milestones_to_snapshot(path: LearningPath) -> str:
+    """Serialise the path's current milestones to a JSON string suitable
+    for a PathRevision row. Captures the fields we need to faithfully
+    restore — including completed/completed_at so progress is preserved
+    by value when an old revision is restored."""
+    payload = [
+        {
+            "title": m.title,
+            "description": m.description,
+            "order": m.order,
+            "estimated_hours": m.estimated_hours,
+            "resources": m.resources,
+            "completed": bool(m.completed),
+            "completed_at": m.completed_at.isoformat() if m.completed_at else None,
+            "difficulty_feedback": m.difficulty_feedback,
+        }
+        for m in sorted(path.milestones, key=lambda x: x.order or 0)
+    ]
+    return json.dumps(payload)
+
+
+def snapshot_revision(path: LearningPath, trigger: str, db: Session) -> PathRevision:
+    """Append a new PathRevision row for the path's current milestone set."""
+    last = (
+        db.query(PathRevision)
+        .filter(PathRevision.learning_path_id == path.id)
+        .order_by(PathRevision.revision_number.desc())
+        .first()
+    )
+    next_num = (last.revision_number + 1) if last else 1
+    rev = PathRevision(
+        learning_path_id=path.id,
+        revision_number=next_num,
+        milestones_json=_milestones_to_snapshot(path),
+        trigger=trigger,
+    )
+    db.add(rev)
+    db.flush()
+    return rev
+
+
+def _current_version_label(path: LearningPath) -> str:
+    """Build the share-page version label. Paths created before AP24 have
+    no revisions yet and show a bare 'v1'."""
+    revs = sorted(path.revisions, key=lambda r: r.revision_number) if path.revisions else []
+    if not revs:
+        return "v1"
+    cur = revs[-1]
+    trig = cur.trigger or "initial"
+    return f"v{cur.revision_number}" if trig == "initial" else f"v{cur.revision_number} — {trig}"
 
 
 def _enqueue_enrichment(background_tasks: BackgroundTasks, milestones, goal: str):
@@ -303,6 +368,10 @@ async def create_learning_path_endpoint(
             db.flush()
             created.append(milestone)
 
+        db.commit()
+        db.refresh(db_path)
+        # AP24 — initial revision so future regenerate/restore have a v1 to fall back to.
+        snapshot_revision(db_path, "initial", db)
         db.commit()
         db.refresh(db_path)
 
@@ -381,6 +450,10 @@ async def generate_stream(
                 }
                 yield f"data: {json.dumps(payload)}\n\n"
 
+            db.commit()
+            db.refresh(db_path)
+            # AP24 — initial revision (streaming generate).
+            snapshot_revision(db_path, "initial", db)
             db.commit()
             db.refresh(db_path)
 
@@ -525,6 +598,10 @@ async def fork_path(
         ))
 
     src.fork_count = (src.fork_count or 0) + 1
+    db.commit()
+    db.refresh(new_path)
+    # AP24 — initial revision on the forked path (its own version history starts fresh).
+    snapshot_revision(new_path, "initial", db)
     db.commit()
     db.refresh(new_path)
     return _build_path_response(new_path)
@@ -813,6 +890,10 @@ async def milestone_feedback(
         logger.error(f"adjust_difficulty failed for path {path.id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to adjust difficulty: {e}")
 
+    # AP24 — snapshot the pre-change milestone set BEFORE the destructive
+    # delete so the user can revert. trigger derived from the feedback.
+    snapshot_revision(path, "harder" if body.feedback == "too_easy" else "easier", db)
+
     # Delete the old remaining rows, insert the new ones reusing the order sequence
     for m in to_replace:
         db.delete(m)
@@ -848,6 +929,87 @@ async def milestone_feedback(
             m.id, m.title, m.description, goal,
         )
 
+    return _build_path_response(path)
+
+
+# AP24 — list a path's revision history (owner only).
+def _load_owned_path(path_id: int, current: User, db: Session) -> LearningPath:
+    path = db.query(LearningPath).filter(LearningPath.id == path_id).first()
+    if not path or path.user_id != current.id:
+        raise HTTPException(status_code=404, detail="Learning path not found")
+    return path
+
+
+@router.get("/paths/{path_id}/revisions", response_model=List[RevisionOut])
+async def list_path_revisions(
+    path_id: int,
+    current: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    path = _load_owned_path(path_id, current, db)
+    revs = sorted(path.revisions, key=lambda r: r.revision_number)
+    return [RevisionOut.model_validate(r) for r in revs]
+
+
+# AP24 — restore a revision: replace current milestones with the snapshot,
+# then append a new "restore" revision so history is append-only.
+@router.post("/paths/{path_id}/revisions/{revision_number}/restore", response_model=LearningPathResponse)
+async def restore_path_revision(
+    path_id: int,
+    revision_number: int,
+    current: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    path = _load_owned_path(path_id, current, db)
+    target = next(
+        (r for r in path.revisions if r.revision_number == revision_number),
+        None,
+    )
+    if target is None:
+        raise HTTPException(status_code=404, detail="Revision not found")
+
+    try:
+        snapshot = json.loads(target.milestones_json)
+        if not isinstance(snapshot, list):
+            raise ValueError("snapshot is not a list")
+    except (ValueError, TypeError, json.JSONDecodeError):
+        raise HTTPException(status_code=500, detail="Stored revision is unreadable")
+
+    # Wipe current milestones (their MilestoneTasks/MilestoneNotes cascade-
+    # delete by the model relationships) and recreate from the snapshot.
+    for m in list(path.milestones):
+        db.delete(m)
+    db.flush()
+
+    for idx, entry in enumerate(snapshot):
+        completed_at = entry.get("completed_at")
+        if completed_at:
+            try:
+                completed_at = datetime.fromisoformat(completed_at)
+            except (TypeError, ValueError):
+                completed_at = None
+        db.add(Milestone(
+            learning_path_id=path.id,
+            title=entry.get("title", ""),
+            description=entry.get("description", ""),
+            order=entry.get("order", idx),
+            estimated_hours=entry.get("estimated_hours", 0),
+            resources=entry.get("resources", "[]"),
+            completed=bool(entry.get("completed", False)),
+            completed_at=completed_at,
+            difficulty_feedback=entry.get("difficulty_feedback"),
+        ))
+    db.flush()
+    db.refresh(path)
+
+    # Recompute total_xp from the restored set (streak/last_active_date
+    # left as-is; restoring shouldn't fake activity).
+    path.total_xp = 10 * sum(1 for m in path.milestones if m.completed)
+
+    # Append the restore as its own revision so history is append-only.
+    snapshot_revision(path, "restore", db)
+    db.commit()
+    db.refresh(path)
     return _build_path_response(path)
 
 

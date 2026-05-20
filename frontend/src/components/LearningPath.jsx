@@ -31,6 +31,50 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
     const [pathAdjustedFlash, setPathAdjustedFlash] = useState(false);
     // AP8 — when set, the QuizModal renders for this milestone id
     const [quizForMilestoneId, setQuizForMilestoneId] = useState(null);
+    // AP24 — version history
+    const [currentVersion, setCurrentVersion] = useState(pathData.current_version || null);
+    const [revisionsOpen, setRevisionsOpen] = useState(false);
+    const [revisions, setRevisions] = useState([]);
+    const [revisionsLoaded, setRevisionsLoaded] = useState(false);
+    const [restoring, setRestoring] = useState(false);
+
+    const openRevisions = async () => {
+        const nowOpen = !revisionsOpen;
+        setRevisionsOpen(nowOpen);
+        if (nowOpen && !revisionsLoaded) {
+            try {
+                const res = await axios.get(`${API_BASE}/paths/${pathData.id}/revisions`, { withCredentials: true });
+                setRevisions(res.data || []);
+                setRevisionsLoaded(true);
+            } catch (err) {
+                console.warn('Failed to load revisions', err);
+            }
+        }
+    };
+
+    const restoreRevision = async (revisionNumber) => {
+        if (restoring) return;
+        setRestoring(true);
+        try {
+            const res = await axios.post(
+                `${API_BASE}/paths/${pathData.id}/revisions/${revisionNumber}/restore`,
+                {},
+                { withCredentials: true },
+            );
+            const p = res.data;
+            setMilestones(p.milestones || []);
+            setTotalXp(p.total_xp || 0);
+            setStreakDays(p.streak_days || 0);
+            setCurrentVersion(p.current_version || null);
+            // Refresh the revisions list (now includes the new 'restore' row).
+            setRevisionsLoaded(false);
+            setRevisions([]);
+        } catch (err) {
+            console.warn('Failed to restore revision', err);
+        } finally {
+            setRestoring(false);
+        }
+    };
 
     // AP8 — local-state patch when a quiz attempt passes (called from QuizModal).
     // The server has already marked the milestone complete + recomputed XP/streak.
@@ -148,6 +192,11 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
 
                 <div className="path-header-content">
                     <h1 className="path-title">{pathData.title}</h1>
+                    {currentVersion && (
+                        <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '0.25rem' }}>
+                            🕰 {currentVersion}
+                        </div>
+                    )}
                     <p className="path-description">{pathData.description}</p>
 
                     <div className="path-meta">
@@ -182,7 +231,46 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
                         <button className="btn btn-export" onClick={handleExport}>
                             📥 Export .md
                         </button>
+                        {/* AP24 — version history (owner only) */}
+                        {user && (
+                            <button className="btn btn-secondary" onClick={openRevisions}>
+                                🕰 Versions
+                            </button>
+                        )}
                     </div>
+
+                    {/* AP24 — revisions panel */}
+                    {revisionsOpen && user && (
+                        <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: 'rgba(30, 41, 59, 0.5)', borderRadius: '0.5rem' }}>
+                            <div style={{ fontSize: '0.85rem', color: '#cbd5e1', fontWeight: 600, marginBottom: '0.5rem' }}>
+                                Version history (newest first)
+                            </div>
+                            {revisions.length === 0 && (
+                                <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+                                    {revisionsLoaded ? 'No revisions yet.' : 'Loading…'}
+                                </div>
+                            )}
+                            {[...revisions].reverse().map((r) => (
+                                <div key={r.revision_number} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.3rem 0' }}>
+                                    <span style={{ fontSize: '0.85rem', color: '#e2e8f0' }}>
+                                        v{r.revision_number} · {r.trigger}
+                                        <span style={{ color: '#94a3b8', marginLeft: '0.4rem' }}>
+                                            {new Date(r.created_at).toLocaleString()}
+                                        </span>
+                                    </span>
+                                    <button
+                                        className="btn btn-ghost"
+                                        onClick={() => restoreRevision(r.revision_number)}
+                                        disabled={restoring}
+                                        style={{ fontSize: '0.8rem', padding: '0.3rem 0.6rem' }}
+                                        title="Replace current milestones with this snapshot (itself versioned)"
+                                    >
+                                        Restore
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
 

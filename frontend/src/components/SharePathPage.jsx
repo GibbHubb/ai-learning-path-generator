@@ -88,6 +88,11 @@ export default function SharePathPage({ pathId, user, onSignIn, onForked }) {
                         </button>
                     </div>
                     <h1 className="path-title">{path.title}</h1>
+                    {path.current_version && (
+                        <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '0.25rem' }}>
+                            🕰 {path.current_version}
+                        </div>
+                    )}
                     <p className="path-description">{path.description}</p>
                     {forkError && <p style={{ color: '#f87171', marginTop: '0.5rem' }}>{forkError}</p>}
                     <div className="path-meta">

@@ -66,6 +66,26 @@ class LearningPath(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     milestones = relationship("Milestone", back_populates="learning_path", cascade="all, delete-orphan")
+    # AP24 — append-only revision history (initial / harder / easier / restore)
+    revisions = relationship("PathRevision", back_populates="learning_path", cascade="all, delete-orphan", order_by="PathRevision.revision_number")
+
+
+# AP24 — JSON snapshot of a path's milestones at a point in time. Append-only
+# so the user can always revert (a `restore` is itself a new revision, never
+# destructive). milestones_json holds the ordered list (title, description,
+# order, estimated_hours, resources, completed, completed_at).
+class PathRevision(Base):
+    __tablename__ = "path_revisions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    learning_path_id = Column(Integer, ForeignKey("learning_paths.id"), nullable=False, index=True)
+    revision_number = Column(Integer, nullable=False)
+    milestones_json = Column(Text, nullable=False)
+    trigger = Column(String, nullable=False)  # "initial" | "harder" | "easier" | "restore"
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    learning_path = relationship("LearningPath", back_populates="revisions")
+
 
 class Milestone(Base):
     __tablename__ = "milestones"
