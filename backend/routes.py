@@ -48,6 +48,7 @@ class LearningPathCreate(BaseModel):
     goal: str
     experience_level: str
     time_commitment: str
+    language: Optional[str] = "en"  # AP27 — unknown values fall back to en in ai_service
 
 class MilestoneTaskOut(BaseModel):
     id: int
@@ -87,6 +88,7 @@ class LearningPathResponse(BaseModel):
     created_at: datetime
     milestones: List[MilestoneResponse]
     current_version: Optional[str] = None  # AP24 — e.g. "v3 — harder"
+    language: Optional[str] = "en"  # AP27
 
     class Config:
         from_attributes = True
@@ -257,6 +259,7 @@ def _build_path_response(path: LearningPath) -> LearningPathResponse:
         created_at=path.created_at,
         milestones=sorted([_build_milestone_response(m) for m in path.milestones], key=lambda x: x.order),
         current_version=_current_version_label(path),  # AP24
+        language=getattr(path, "language", "en") or "en",  # AP27
     )
 
 
@@ -335,7 +338,8 @@ async def create_learning_path_endpoint(
     """Generate a new learning path using AI"""
     try:
         ai_result = generate_learning_path(
-            path_data.goal, path_data.experience_level, path_data.time_commitment
+            path_data.goal, path_data.experience_level, path_data.time_commitment,
+            path_data.language or "en",  # AP27
         )
 
         # AP9 — record ownership: signed-in users get user_id; anonymous
@@ -351,6 +355,7 @@ async def create_learning_path_endpoint(
             category=ai_result.get("category", "Other"),  # AP6
             user_id=owner_id,
             anon_session_id=anon_id,
+            language=path_data.language or "en",  # AP27
         )
         db.add(db_path)
         db.flush()
@@ -404,14 +409,16 @@ async def generate_stream(
     owner_id = current_user.id if current_user else None
     anon_id = None if current_user else ensure_anon_id(request, response)
 
+    lang = path_data.language or "en"  # AP27 — captured for the generator closure
+
     def event_generator():
         try:
             milestones_data = list(stream_learning_path(
-                path_data.goal, path_data.experience_level, path_data.time_commitment,
+                path_data.goal, path_data.experience_level, path_data.time_commitment, lang,
             ))
 
             from ai_service import generate_learning_path as _glp
-            ai_result = _glp(path_data.goal, path_data.experience_level, path_data.time_commitment)
+            ai_result = _glp(path_data.goal, path_data.experience_level, path_data.time_commitment, lang)
 
             db_path = LearningPath(
                 title=ai_result["path_title"],
@@ -421,6 +428,7 @@ async def generate_stream(
                 category=ai_result.get("category", "Other"),  # AP6
                 user_id=owner_id,
                 anon_session_id=anon_id,
+                language=lang,  # AP27
             )
             db.add(db_path)
             db.flush()
@@ -573,6 +581,7 @@ async def fork_path(
         experience_level=src.experience_level,
         time_commitment=src.time_commitment,
         category=src.category,
+        language=getattr(src, "language", "en") or "en",  # AP27 — fork preserves language
         is_public=False,
         total_xp=0,
         streak_days=0,
@@ -962,6 +971,7 @@ async def milestone_feedback(
     path_title = path.title
     path_description = path.description
     feedback = body.feedback
+    path_language = getattr(path, "language", "en") or "en"  # AP27
 
     # Regenerate remaining milestones via OpenAI
     try:
@@ -974,6 +984,7 @@ async def milestone_feedback(
             completed_milestones=completed_payload,
             remaining_milestones=remaining_payload,
             feedback=feedback,
+            language=path_language,  # AP27 — keep regenerated milestones in same language
         )
     except Exception as e:
         db.rollback()

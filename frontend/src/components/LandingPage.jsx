@@ -8,6 +8,7 @@ const LandingPage = ({ onPathGenerated, onExplore }) => {
         goal: '',
         experience_level: 'beginner',
         time_commitment: '5-10 hours/week',
+        language: 'en',  // AP27
     });
     const [isGenerating, setIsGenerating] = useState(false);
     const [streamedMilestones, setStreamedMilestones] = useState([]);
@@ -177,6 +178,28 @@ const LandingPage = ({ onPathGenerated, onExplore }) => {
                                     <option value="5-10 hours/week">5-10 hours/week</option>
                                     <option value="10-20 hours/week">10-20 hours/week</option>
                                     <option value="20+ hours/week">20+ hours/week</option>
+                                </select>
+                            </div>
+
+                            {/* AP27 — generated-content language */}
+                            <div className="input-group">
+                                <label className="input-label" htmlFor="language">
+                                    Language
+                                </label>
+                                <select
+                                    id="language"
+                                    name="language"
+                                    className="input-field"
+                                    value={formData.language}
+                                    onChange={handleChange}
+                                    disabled={isGenerating}
+                                >
+                                    <option value="en">English</option>
+                                    <option value="nl">Nederlands</option>
+                                    <option value="es">Español</option>
+                                    <option value="fr">Français</option>
+                                    <option value="de">Deutsch</option>
+                                    <option value="pt">Português</option>
                                 </select>
                             </div>
                         </div>

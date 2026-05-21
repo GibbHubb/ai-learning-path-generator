@@ -11,11 +11,46 @@ logger = logging.getLogger(__name__)
 # Simple in-memory cache to avoid repeated API calls
 CACHE = {}
 
-def generate_learning_path(goal: str, experience_level: str, time_commitment: str):
+
+# AP27 — supported content languages. Unknown values fall back to "en".
+LANGUAGE_NAMES = {
+    "en": "English",
+    "nl": "Dutch",
+    "es": "Spanish",
+    "fr": "French",
+    "de": "German",
+    "pt": "Portuguese",
+}
+
+
+def language_instruction(language: str | None) -> str:
+    """One deterministic line appended to the system prompt to localise
+    *values* while keeping JSON keys/structure pinned in English.
+
+    Returns "" for English / unknown / falsy (so the prompt is byte-
+    identical to pre-AP27 behaviour for the default English path).
+    """
+    if not language or language == "en":
+        return ""
+    name = LANGUAGE_NAMES.get(language)
+    if not name:
+        return ""
+    return (
+        f" Generate all output text values (titles, descriptions, resources)"
+        f" in {name}. Keep the JSON keys and overall structure exactly as"
+        f" specified — only the free-text values change language."
+    )
+
+def generate_learning_path(goal: str, experience_level: str, time_commitment: str, language: str = "en"):
     """Generate a structured learning path using OpenAI"""
-    
+
+    # Normalise unknown languages → English so the cache key + prompt stay
+    # consistent (an attacker can't poison the cache with arbitrary codes).
+    if language not in LANGUAGE_NAMES:
+        language = "en"
+
     # Check cache first
-    cache_key = f"{goal}:{experience_level}:{time_commitment}"
+    cache_key = f"{goal}:{experience_level}:{time_commitment}:{language}"
     if cache_key in CACHE:
         logger.info(f"Returning cached result for: {cache_key}")
         return CACHE[cache_key]
@@ -57,7 +92,7 @@ Make the path progressive - each milestone should build on previous ones. Be spe
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": "You are an expert learning path designer who creates structured, actionable learning plans. Always respond with valid JSON."},
+                {"role": "system", "content": "You are an expert learning path designer who creates structured, actionable learning plans. Always respond with valid JSON." + language_instruction(language)},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
@@ -75,13 +110,13 @@ Make the path progressive - each milestone should build on previous ones. Be spe
         raise Exception(f"Failed to generate learning path: {str(e)}")
 
 
-def stream_learning_path(goal: str, experience_level: str, time_commitment: str):
+def stream_learning_path(goal: str, experience_level: str, time_commitment: str, language: str = "en"):
     """
     Generator that yields milestones one-by-one after generating the full path.
     Uses the same caching and OpenAI call as generate_learning_path so the
     sync endpoint remains untouched.
     """
-    result = generate_learning_path(goal, experience_level, time_commitment)
+    result = generate_learning_path(goal, experience_level, time_commitment, language)
     for milestone in result.get("milestones", []):
         yield milestone
 
@@ -95,6 +130,7 @@ def adjust_difficulty(
     completed_milestones: list,
     remaining_milestones: list,
     feedback: str,
+    language: str = "en",
 ):
     """AP5 — Regenerate remaining milestones at adjusted difficulty.
 
@@ -153,7 +189,7 @@ Return ONLY a JSON object with this exact structure:
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": "You are an expert learning path designer. Always respond with valid JSON."},
+                {"role": "system", "content": "You are an expert learning path designer. Always respond with valid JSON." + language_instruction(language)},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.7,

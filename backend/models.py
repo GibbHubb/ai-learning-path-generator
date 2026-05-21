@@ -55,6 +55,7 @@ class LearningPath(Base):
     streak_days = Column(Integer, default=0, nullable=False)
     last_active_date = Column(Date, nullable=True)
     category = Column(String, nullable=True)  # AP6: "Programming" | "Design" | "Business" | "Science" | "Creative" | "Language" | "Other"
+    language = Column(String, default="en", nullable=False)  # AP27 — content language for regeneration consistency
     # AP9 — ownership
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     anon_session_id = Column(String, nullable=True, index=True)  # browser-cookie id for the claim flow

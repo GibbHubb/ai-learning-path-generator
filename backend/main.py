@@ -41,6 +41,9 @@ with engine.connect() as conn:
         conn.execute(text("ALTER TABLE learning_paths ADD COLUMN original_author_id INTEGER"))
     if "fork_count" not in cols:
         conn.execute(text("ALTER TABLE learning_paths ADD COLUMN fork_count INTEGER NOT NULL DEFAULT 0"))
+    # AP27 — content language (en default for legacy rows)
+    if "language" not in cols:
+        conn.execute(text("ALTER TABLE learning_paths ADD COLUMN language VARCHAR NOT NULL DEFAULT 'en'"))
 
     # AP11 — reminder opt-in + bookkeeping on users (the table exists since AP9)
     if inspect(engine).has_table("users"):
