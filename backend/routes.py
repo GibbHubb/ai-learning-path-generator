@@ -831,6 +831,59 @@ async def delete_milestone_task(
     return response
 
 
+# ---------------------------------------------------------------------------
+# AP26 — Achievement badges
+# ---------------------------------------------------------------------------
+
+# Declarative badge catalogue: single source of truth, served from the API
+# so the frontend never re-defines thresholds (no drift). A badge is earned
+# when `stats[metric] >= threshold`.
+BADGES = [
+    # Bronze
+    {"id": "first_path",  "tier": "bronze", "label": "First path completed", "metric": "completed_paths", "threshold": 1},
+    {"id": "xp_100",      "tier": "bronze", "label": "100 XP",               "metric": "total_xp",        "threshold": 100},
+    {"id": "xp_500",      "tier": "bronze", "label": "500 XP",               "metric": "total_xp",        "threshold": 500},
+    {"id": "xp_1000",     "tier": "bronze", "label": "First 1,000 XP",       "metric": "total_xp",        "threshold": 1000},
+    # Silver
+    {"id": "streak_5",    "tier": "silver", "label": "5-day streak",         "metric": "best_streak",     "threshold": 5},
+    {"id": "paths_5",     "tier": "silver", "label": "5 paths completed",    "metric": "completed_paths", "threshold": 5},
+    {"id": "xp_2500",     "tier": "silver", "label": "2,500 XP",             "metric": "total_xp",        "threshold": 2500},
+    # Gold
+    {"id": "streak_10",   "tier": "gold",   "label": "10-day streak",        "metric": "best_streak",     "threshold": 10},
+    {"id": "paths_10",    "tier": "gold",   "label": "10 paths completed",   "metric": "completed_paths", "threshold": 10},
+    {"id": "xp_5000",     "tier": "gold",   "label": "5,000 XP",             "metric": "total_xp",        "threshold": 5000},
+]
+
+
+@router.get("/me/stats")
+async def me_stats(
+    current: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    """Aggregate XP/streak/path-completion + derived earned badges.
+    Badges are a pure projection of the stats — no badge table."""
+    user_paths = (
+        db.query(LearningPath)
+        .filter(LearningPath.user_id == current.id)
+        .all()
+    )
+    total_xp = sum((p.total_xp or 0) for p in user_paths)
+    best_streak = max((p.streak_days or 0 for p in user_paths), default=0)
+    # "Path completed" = every milestone completed AND ≥1 milestone exists.
+    completed_paths = sum(
+        1 for p in user_paths
+        if p.milestones and all(m.completed for m in p.milestones)
+    )
+    stats = {
+        "total_xp": total_xp,
+        "best_streak": best_streak,
+        "completed_paths": completed_paths,
+        "total_paths": len(user_paths),
+    }
+    earned_ids = [b["id"] for b in BADGES if stats[b["metric"]] >= b["threshold"]]
+    return {**stats, "earned_badges": earned_ids, "badges": BADGES}
+
+
 @router.delete("/paths/{path_id}")
 async def delete_path(path_id: int, db: Session = Depends(get_db)):
     """Delete a learning path"""

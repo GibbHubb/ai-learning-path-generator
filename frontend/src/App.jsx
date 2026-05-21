@@ -5,6 +5,7 @@ import SharePathPage from './components/SharePathPage';
 import ExplorePage from './components/ExplorePage';
 import LoginPage from './components/LoginPage';
 import MyPathsPage from './components/MyPathsPage';
+import ProfilePage from './components/ProfilePage';
 import AuthBar from './components/AuthBar';
 import { getCurrentUser, logout, verifyToken } from './services/auth';
 import './index.css';
@@ -20,6 +21,7 @@ function getSharePathId() {
 function isExploreUrl()  { return /^\/explore\/?$/.test(window.location.pathname); }
 function isLoginUrl()    { return /^\/login\/?$/.test(window.location.pathname); }
 function isMyPathsUrl()  { return /^\/my-paths\/?$/.test(window.location.pathname); }
+function isProfileUrl()  { return /^\/profile\/?$/.test(window.location.pathname); }
 function isVerifyUrl()   { return /^\/auth\/verify\/?$/.test(window.location.pathname); }
 function getVerifyToken() {
     const params = new URLSearchParams(window.location.search);
@@ -31,6 +33,7 @@ function pickInitialView() {
     if (isExploreUrl())  return 'explore';
     if (isLoginUrl())    return 'login';
     if (isMyPathsUrl())  return 'my-paths';
+    if (isProfileUrl())  return 'profile';
     if (isVerifyUrl())   return 'verify';
     return 'landing';
 }
@@ -136,6 +139,11 @@ function App() {
         window.history.pushState({}, '', '/my-paths');
         setView('my-paths');
     };
+    const handleShowProfile = () => {
+        if (!user) { handleSignIn(); return; }
+        window.history.pushState({}, '', '/profile');
+        setView('profile');
+    };
     const handleBackToLanding = () => {
         window.history.pushState({}, '', '/');
         setView('landing');
@@ -145,7 +153,7 @@ function App() {
     if (view === 'share' && sharePathId) {
         return (
             <div className="app">
-                <AuthBar user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} onMyPaths={handleShowMyPaths} />
+                <AuthBar user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} onMyPaths={handleShowMyPaths} onProfile={handleShowProfile} />
                 <SharePathPage
                     pathId={sharePathId}
                     user={user}
@@ -174,7 +182,7 @@ function App() {
     if (view === 'login') {
         return (
             <div className="app">
-                <AuthBar user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} onMyPaths={handleShowMyPaths} />
+                <AuthBar user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} onMyPaths={handleShowMyPaths} onProfile={handleShowProfile} />
                 <LoginPage onBack={handleBackToLanding} />
             </div>
         );
@@ -199,11 +207,21 @@ function App() {
         );
     }
 
+    // AP26 — profile + achievement badges (owner only)
+    if (view === 'profile') {
+        return (
+            <div className="app">
+                <AuthBar user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} onMyPaths={handleShowMyPaths} onProfile={handleShowProfile} />
+                <ProfilePage user={user} onBack={handleBackToLanding} />
+            </div>
+        );
+    }
+
     // AP9 — my saved paths
     if (view === 'my-paths') {
         return (
             <div className="app">
-                <AuthBar user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} onMyPaths={handleShowMyPaths} />
+                <AuthBar user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} onMyPaths={handleShowMyPaths} onProfile={handleShowProfile} />
                 <MyPathsPage
                     user={user}
                     onUserUpdate={setUser}
@@ -221,7 +239,7 @@ function App() {
 
     return (
         <div className="app">
-            <AuthBar user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} onMyPaths={handleShowMyPaths} />
+            <AuthBar user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} onMyPaths={handleShowMyPaths} onProfile={handleShowProfile} />
             {/* Resume-path banner */}
             {view === 'landing' && resumePrompt && (
                 <div className="resume-banner glass-card fade-in">

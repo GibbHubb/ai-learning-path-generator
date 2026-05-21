@@ -3,12 +3,13 @@
 
 import React from 'react';
 
-export default function AuthBar({ user, onSignIn, onSignOut, onMyPaths }) {
+export default function AuthBar({ user, onSignIn, onSignOut, onMyPaths, onProfile }) {
   return (
     <div style={barStyle}>
       {user ? (
         <>
           <button onClick={onMyPaths} style={linkStyle}>My paths</button>
+          {onProfile && <button onClick={onProfile} style={linkStyle}>Profile</button>}
           <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>{user.email}</span>
           <button onClick={onSignOut} style={btnStyle}>Sign out</button>
         </>
