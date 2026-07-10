@@ -54,6 +54,9 @@ with engine.connect() as conn:
             conn.execute(text("ALTER TABLE users ADD COLUMN reminder_sent_at DATETIME"))
         if "no_activity_reminders_sent" not in user_cols:
             conn.execute(text("ALTER TABLE users ADD COLUMN no_activity_reminders_sent INTEGER NOT NULL DEFAULT 0"))
+        # AP30 — opt-in public profile flag
+        if "is_public_profile" not in user_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN is_public_profile BOOLEAN NOT NULL DEFAULT 0"))
 
     milestone_cols = {c["name"] for c in inspect(engine).get_columns("milestones")}
     # AP5 — difficulty_feedback column on milestones

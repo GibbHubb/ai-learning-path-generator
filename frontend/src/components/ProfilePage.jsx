@@ -5,26 +5,16 @@
 
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import BadgeGrid from './BadgeGrid';
 
 const API_BASE = 'http://localhost:8000/api';
-
-const TIER_ORDER = ['bronze', 'silver', 'gold'];
-const TIER_LABEL = { bronze: '🥉 Bronze', silver: '🥈 Silver', gold: '🥇 Gold' };
-const TIER_COLOR = {
-    bronze: { earned: '#b45309', locked: '#7c5b2a' },
-    silver: { earned: '#9ca3af', locked: '#64748b' },
-    gold:   { earned: '#f59e0b', locked: '#78716c' },
-};
-
-const METRIC_LABEL = {
-    total_xp: 'XP',
-    best_streak: 'day streak',
-    completed_paths: 'paths completed',
-};
 
 const ProfilePage = ({ user, onBack }) => {
     const [stats, setStats] = useState(null);
     const [error, setError] = useState(null);
+    // AP30 — public profile opt-in
+    const [isPublic, setIsPublic] = useState(false);
+    const [copied, setCopied] = useState(false);
 
     useEffect(() => {
         axios
@@ -35,6 +25,39 @@ const ProfilePage = ({ user, onBack }) => {
                 setError('Could not load your stats. Are you signed in?');
             });
     }, []);
+
+    // AP30 — seed the toggle from the signed-in user record when available.
+    useEffect(() => {
+        if (user && typeof user.is_public_profile === 'boolean') {
+            setIsPublic(user.is_public_profile);
+        }
+    }, [user]);
+
+    const publicUrl = user ? `${window.location.origin}/u/${user.id}` : '';
+
+    const handleTogglePublic = async () => {
+        const next = !isPublic;
+        try {
+            const res = await axios.patch(
+                `${API_BASE}/me/profile/visibility`,
+                { is_public_profile: next },
+                { withCredentials: true },
+            );
+            setIsPublic(res.data.is_public_profile);
+        } catch (err) {
+            console.warn('Failed to update profile visibility', err);
+        }
+    };
+
+    const handleCopyLink = async () => {
+        try {
+            await navigator.clipboard.writeText(publicUrl);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch {
+            /* clipboard unavailable — no-op */
+        }
+    };
 
     if (error) {
         return (
@@ -57,12 +80,6 @@ const ProfilePage = ({ user, onBack }) => {
         );
     }
 
-    const earnedSet = new Set(stats.earned_badges || []);
-    const groupedByTier = TIER_ORDER.map((tier) => ({
-        tier,
-        badges: (stats.badges || []).filter((b) => b.tier === tier),
-    }));
-
     return (
         <div className="learning-path-container">
             <div className="path-header glass-card fade-in">
@@ -81,47 +98,32 @@ const ProfilePage = ({ user, onBack }) => {
                         )}
                         <span className="meta-item">📚 {stats.completed_paths}/{stats.total_paths} paths completed</span>
                     </div>
+
+                    {/* AP30 — public profile opt-in + shareable link */}
+                    {user && (
+                        <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(148,163,184,0.2)' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem', color: '#cbd5e1' }}>
+                                <input type="checkbox" checked={isPublic} onChange={handleTogglePublic} />
+                                Make my profile public
+                            </label>
+                            {isPublic && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                                    <code style={{ fontSize: '0.8rem', color: '#94a3b8', background: 'rgba(30,41,59,0.5)', padding: '0.3rem 0.5rem', borderRadius: '0.35rem' }}>
+                                        {publicUrl}
+                                    </code>
+                                    <button className="btn btn-secondary" onClick={handleCopyLink} style={{ padding: '0.3rem 0.7rem', fontSize: '0.8rem' }}>
+                                        {copied ? '✓ Copied!' : '🔗 Copy link'}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 
             <div className="milestones-container">
                 <h2 className="milestones-title fade-in">Achievements</h2>
-                {groupedByTier.map(({ tier, badges }) => (
-                    <div key={tier} style={{ marginBottom: '1.5rem' }}>
-                        <h3 style={{ fontSize: '1.1rem', color: '#cbd5e1', marginBottom: '0.6rem' }}>
-                            {TIER_LABEL[tier]}
-                        </h3>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
-                            {badges.map((b) => {
-                                const earned = earnedSet.has(b.id);
-                                const accent = earned ? TIER_COLOR[tier].earned : TIER_COLOR[tier].locked;
-                                const progress = stats[b.metric] ?? 0;
-                                const metricLabel = METRIC_LABEL[b.metric] || b.metric;
-                                return (
-                                    <div
-                                        key={b.id}
-                                        title={earned ? 'Earned' : `Reach ${b.threshold} ${metricLabel} (currently ${progress})`}
-                                        style={{
-                                            padding: '0.7rem 0.9rem',
-                                            background: earned ? `${accent}33` : 'rgba(30, 41, 59, 0.4)',
-                                            border: `1px solid ${accent}`,
-                                            borderRadius: '0.5rem',
-                                            minWidth: '150px',
-                                            opacity: earned ? 1 : 0.55,
-                                        }}
-                                    >
-                                        <div style={{ fontWeight: 600, fontSize: '0.95rem', color: earned ? '#e2e8f0' : '#94a3b8' }}>
-                                            {b.label}
-                                        </div>
-                                        <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.2rem' }}>
-                                            {earned ? 'Earned' : `${progress} / ${b.threshold} ${metricLabel}`}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                ))}
+                <BadgeGrid stats={stats} />
             </div>
         </div>
     );

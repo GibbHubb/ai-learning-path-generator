@@ -86,10 +86,22 @@ export default function SharePathPage({ pathId, user, onSignIn, onForked }) {
                                     try { await downloadIcs(API_BASE, path.id); }
                                     catch (err) { console.warn('Calendar export failed', err); }
                                 }}
-                                title="Download an .ics calendar file"
+                                title="Download an .ics calendar file with milestone reminders"
                                 style={{ whiteSpace: 'nowrap' }}
                             >
                                 📅 Add to calendar
+                            </button>
+                            {/* AP29 — same calendar plus a recurring weekly study block */}
+                            <button
+                                className="btn btn-secondary"
+                                onClick={async () => {
+                                    try { await downloadIcs(API_BASE, path.id, { studyBlocks: true }); }
+                                    catch (err) { console.warn('Calendar export failed', err); }
+                                }}
+                                title="Download the calendar with a recurring weekly study block"
+                                style={{ whiteSpace: 'nowrap' }}
+                            >
+                                📅 + study blocks
                             </button>
                             <button
                                 className="btn btn-primary"

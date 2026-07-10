@@ -231,16 +231,27 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
                         <button className="btn btn-export" onClick={handleExport}>
                             📥 Export .md
                         </button>
-                        {/* AP25 — calendar export */}
+                        {/* AP25 — calendar export (AP29: reminders always included) */}
                         <button
                             className="btn btn-secondary"
                             onClick={async () => {
                                 try { await downloadIcs(API_BASE, pathData.id); }
                                 catch (err) { console.warn('Calendar export failed', err); }
                             }}
-                            title="Download an .ics calendar file"
+                            title="Download an .ics calendar file with milestone reminders"
                         >
                             📅 Add to calendar
+                        </button>
+                        {/* AP29 — same calendar plus a recurring weekly study block */}
+                        <button
+                            className="btn btn-secondary"
+                            onClick={async () => {
+                                try { await downloadIcs(API_BASE, pathData.id, { studyBlocks: true }); }
+                                catch (err) { console.warn('Calendar export failed', err); }
+                            }}
+                            title="Download the calendar with a recurring weekly study block"
+                        >
+                            📅 + study blocks
                         </button>
                         {/* AP24 — version history (owner only) */}
                         {user && (

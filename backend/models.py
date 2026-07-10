@@ -16,6 +16,8 @@ class User(Base):
     reminder_opt_in = Column(Boolean, default=False, nullable=False)
     reminder_sent_at = Column(DateTime, nullable=True)
     no_activity_reminders_sent = Column(Integer, default=0, nullable=False)
+    # AP30 — opt-in public profile (badges + streak shareable at /u/:id)
+    is_public_profile = Column(Boolean, default=False, nullable=False)
 
 
 class MagicLink(Base):

@@ -202,11 +202,38 @@ Return ONLY a JSON object with this exact structure:
         raise Exception(f"Failed to adjust difficulty: {str(e)}")
 
 
-def enrich_milestone_resources(milestone_id: int, title: str, description: str, goal: str):
+def build_enrichment_prompt(title: str, description: str, goal: str, language: str = "en") -> str:
+    """Assemble the Claude enrichment prompt. Pure + side-effect-free so it's
+    unit-testable without hitting the API.
+
+    AP28: when `language` is a known non-English code, append
+    `language_instruction(language)` so the free-text resource *titles* come
+    back in-language. `url`/`type` stay language-neutral machine values.
+    For `en`/unknown/falsy the returned string is byte-identical to pre-AP28
+    (the helper returns "" in those cases).
+    """
+    if language not in LANGUAGE_NAMES:
+        language = "en"
+    return (
+        f"You are a learning resource curator. For the milestone '{title}' "
+        f"(description: {description}) in a learning path about '{goal}', "
+        f"list exactly 3 real, publicly accessible learning resources. "
+        f'Return ONLY a JSON array: [{{"title": "...", "url": "...", "type": "video|docs|article"}}]. '
+        f"Keep the JSON keys and the `type` value (one of video|docs|article) in English; "
+        f"only the free-text `title` values may change language. "
+        f"Use specific, named resources you know exist. No markdown fences."
+        + language_instruction(language)
+    )
+
+
+def enrich_milestone_resources(milestone_id: int, title: str, description: str, goal: str, language: str = "en"):
     """Enrich a milestone with 2-3 real resource links via Claude Haiku.
 
     Runs synchronously (called from a BackgroundTask thread).
     Updates the milestone's resources column in the DB.
+
+    AP28: `language` (default "en") localises the free-text resource titles;
+    unknown codes normalise to English inside build_enrichment_prompt.
     """
     import re
     try:
@@ -223,13 +250,7 @@ def enrich_milestone_resources(milestone_id: int, title: str, description: str, 
     from database import SessionLocal
     from models import Milestone
 
-    prompt = (
-        f"You are a learning resource curator. For the milestone '{title}' "
-        f"(description: {description}) in a learning path about '{goal}', "
-        f"list exactly 3 real, publicly accessible learning resources. "
-        f'Return ONLY a JSON array: [{{"title": "...", "url": "...", "type": "video|docs|article"}}]. '
-        f"Use specific, named resources you know exist. No markdown fences."
-    )
+    prompt = build_enrichment_prompt(title, description, goal, language)
 
     try:
         client = anthropic.Anthropic(api_key=api_key)

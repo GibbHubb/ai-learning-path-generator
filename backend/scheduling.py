@@ -90,3 +90,34 @@ def estimate_schedule(
     # Guarantee monotonic non-decreasing dates (proportional math already
     # is, but math.ceil over equal fractions can repeat — fine).
     return finish, schedule
+
+
+def weekly_study_blocks(
+    time_commitment: str | None,
+    start: date | None = None,
+    finish: date | None = None,
+) -> dict:
+    """AP29 — parameters for a recurring weekly 'study block' calendar event.
+
+    Pure: derives the block's cadence from the free-text `time_commitment`
+    (reusing `parse_time_commitment`) and bounds it to the schedule's finish
+    date. All-day / date-valued to match AP25's calendar style.
+
+    Returns:
+        {
+          "hours_per_week": int,   # from parse_time_commitment
+          "dtstart": date,         # first occurrence (defaults to today)
+          "until": date,           # RRULE UNTIL — never before dtstart
+          "weekday": int,          # 0=Mon .. 6=Sun (dtstart's weekday)
+        }
+    """
+    today = start or date.today()
+    until = finish or (today + timedelta(days=7))
+    if until < today:
+        until = today
+    return {
+        "hours_per_week": parse_time_commitment(time_commitment),
+        "dtstart": today,
+        "until": until,
+        "weekday": today.weekday(),
+    }

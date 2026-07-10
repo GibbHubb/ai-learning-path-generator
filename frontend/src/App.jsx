@@ -6,6 +6,7 @@ import ExplorePage from './components/ExplorePage';
 import LoginPage from './components/LoginPage';
 import MyPathsPage from './components/MyPathsPage';
 import ProfilePage from './components/ProfilePage';
+import PublicProfilePage from './components/PublicProfilePage';
 import AuthBar from './components/AuthBar';
 import { getCurrentUser, logout, verifyToken } from './services/auth';
 import './index.css';
@@ -15,6 +16,12 @@ const API_BASE = 'http://localhost:8000/api';
 // Check if the URL is a share link: /share/:pathId
 function getSharePathId() {
     const match = window.location.pathname.match(/\/share\/(\d+)/);
+    return match ? parseInt(match[1], 10) : null;
+}
+
+// AP30 — public profile link: /u/:userId
+function getPublicProfileId() {
+    const match = window.location.pathname.match(/\/u\/(\d+)/);
     return match ? parseInt(match[1], 10) : null;
 }
 
@@ -30,6 +37,7 @@ function getVerifyToken() {
 
 function pickInitialView() {
     if (getSharePathId()) return 'share';
+    if (getPublicProfileId()) return 'public-profile';
     if (isExploreUrl())  return 'explore';
     if (isLoginUrl())    return 'login';
     if (isMyPathsUrl())  return 'my-paths';
@@ -40,6 +48,7 @@ function pickInitialView() {
 
 function App() {
     const sharePathId = getSharePathId();
+    const publicProfileId = getPublicProfileId();
     const exploreRoute = isExploreUrl();
     const [currentPath, setCurrentPath] = useState(null);
     const [view, setView] = useState(pickInitialView());
@@ -74,7 +83,7 @@ function App() {
     // Refetch when `user` changes so signing in surfaces the user's paths
     // and signing out clears the banner.
     useEffect(() => {
-        if (sharePathId || exploreRoute) return;
+        if (sharePathId || publicProfileId || exploreRoute) return;
         fetch(`${API_BASE}/paths`, { credentials: 'include' })
             .then((r) => r.json())
             .then((paths) => {
@@ -165,6 +174,16 @@ function App() {
                         setView('path');
                     }}
                 />
+            </div>
+        );
+    }
+
+    // AP30 — render public profile page (works signed out)
+    if (view === 'public-profile' && publicProfileId) {
+        return (
+            <div className="app">
+                <AuthBar user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} onMyPaths={handleShowMyPaths} onProfile={handleShowProfile} />
+                <PublicProfilePage userId={publicProfileId} onBack={handleBackToLanding} />
             </div>
         );
     }

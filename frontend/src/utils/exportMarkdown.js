@@ -52,8 +52,11 @@ export function downloadMarkdown(path) {
 
 // AP25 — fetch the server-built .ics and download it. apiBase is passed
 // rather than imported so this module stays free of env-config concerns.
-export async function downloadIcs(apiBase, pathId) {
-  const res = await fetch(`${apiBase}/paths/${pathId}/calendar.ics`, { credentials: 'include' });
+// AP29 — optional `{ studyBlocks }` appends ?study_blocks=1 so the calendar
+// also carries a recurring weekly study-block event.
+export async function downloadIcs(apiBase, pathId, options = {}) {
+  const qs = options.studyBlocks ? '?study_blocks=1' : '';
+  const res = await fetch(`${apiBase}/paths/${pathId}/calendar.ics${qs}`, { credentials: 'include' });
   if (!res.ok) {
     throw new Error(`Failed to fetch calendar: ${res.status}`);
   }

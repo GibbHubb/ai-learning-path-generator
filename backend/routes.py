@@ -30,7 +30,7 @@ from reminders import (
 from quizzes import grade_attempt, get_or_generate_quiz, PASS_THRESHOLD  # noqa: F401
 from models import MilestoneQuiz, QuizAttempt
 import json as _json_for_quiz
-from scheduling import estimate_schedule  # AP25
+from scheduling import estimate_schedule, weekly_study_blocks  # AP25 / AP29
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +140,7 @@ class UserResponse(BaseModel):
     email: str
     created_at: datetime
     reminder_opt_in: bool = False  # AP11
+    is_public_profile: bool = False  # AP30
 
     class Config:
         from_attributes = True
@@ -316,12 +317,16 @@ def _current_version_label(path: LearningPath) -> str:
     return f"v{cur.revision_number}" if trig == "initial" else f"v{cur.revision_number} — {trig}"
 
 
-def _enqueue_enrichment(background_tasks: BackgroundTasks, milestones, goal: str):
-    """Fire background enrichment for each milestone."""
+def _enqueue_enrichment(background_tasks: BackgroundTasks, milestones, goal: str, language: str = "en"):
+    """Fire background enrichment for each milestone.
+
+    AP28: `language` is threaded through so a non-English path's enriched
+    resources come back in-language (captured as a plain string at enqueue
+    time, before the request scope ends)."""
     for m in milestones:
         background_tasks.add_task(
             enrich_milestone_resources,
-            m.id, m.title, m.description, goal,
+            m.id, m.title, m.description, goal, language,
         )
 
 
@@ -382,8 +387,8 @@ async def create_learning_path_endpoint(
         db.commit()
         db.refresh(db_path)
 
-        # AP3 — background enrichment
-        _enqueue_enrichment(background_tasks, created, path_data.goal)
+        # AP3 — background enrichment (AP28: in the path's language)
+        _enqueue_enrichment(background_tasks, created, path_data.goal, db_path.language)
 
         return _build_path_response(db_path)
 
@@ -467,8 +472,8 @@ async def generate_stream(
             db.commit()
             db.refresh(db_path)
 
-            # AP3 — background enrichment
-            _enqueue_enrichment(background_tasks, created_milestones, path_data.goal)
+            # AP3 — background enrichment (AP28: in the path's language)
+            _enqueue_enrichment(background_tasks, created_milestones, path_data.goal, lang)
 
             full_path = {
                 "id": db_path.id,
@@ -629,16 +634,30 @@ async def get_path(path_id: int, db: Session = Depends(get_db)):
 
 # AP25 — calendar export. Mirrors GET /paths/{id}'s open access pattern.
 @router.get("/paths/{path_id}/calendar.ics")
-async def export_path_calendar(path_id: int, db: Session = Depends(get_db)):
+async def export_path_calendar(
+    path_id: int,
+    study_blocks: bool = False,
+    reminder_days: int = 1,
+    db: Session = Depends(get_db),
+):
     """Build an .ics download of the path's milestones scheduled from
     today across `estimate_schedule`'s span. All-day VEVENTs, one per
-    milestone, RFC-5545 valid."""
-    from icalendar import Calendar, Event  # local import — keeps cold-start light
+    milestone, RFC-5545 valid.
+
+    AP29:
+    - Every milestone VEVENT carries a VALARM firing `reminder_days` (default
+      1) before the due date.
+    - When `study_blocks=1`, a recurring weekly all-day study-block VEVENT is
+      added (RRULE FREQ=WEEKLY, UNTIL=schedule finish). Default (off) keeps
+      the AP25 milestone-only calendar unchanged apart from the VALARMs.
+    """
+    from icalendar import Calendar, Event, Alarm  # local import — keeps cold-start light
     path = db.query(LearningPath).filter(LearningPath.id == path_id).first()
     if not path:
         raise HTTPException(status_code=404, detail="Learning path not found")
 
-    _finish, schedule = estimate_schedule(path.milestones, path.time_commitment)
+    lead = reminder_days if reminder_days and reminder_days > 0 else 1
+    finish, schedule = estimate_schedule(path.milestones, path.time_commitment)
 
     cal = Calendar()
     cal.add("prodid", "-//ai-learning-path-generator//AP25//EN")
@@ -651,7 +670,25 @@ async def export_path_calendar(path_id: int, db: Session = Depends(get_db)):
             ev.add("description", m.description.strip())
         ev.add("dtstart", d)  # date (all-day)
         ev.add("dtend", d + timedelta(days=1))  # exclusive end for all-day
+        # AP29 — reminder alarm, relative trigger (well-supported for all-day).
+        alarm = Alarm()
+        alarm.add("action", "DISPLAY")
+        alarm.add("description", f"Milestone due soon: {(m.title or 'Milestone').strip()}")
+        alarm.add("trigger", timedelta(days=-lead))
+        ev.add_component(alarm)
         cal.add_component(ev)
+
+    # AP29 — optional recurring weekly study block.
+    if study_blocks:
+        sb = weekly_study_blocks(path.time_commitment, date.today(), finish)
+        block = Event()
+        block.add("uid", f"path-{path.id}-studyblock@ai-learning-path")
+        block.add("summary", f"📚 Study block (~{sb['hours_per_week']}h/week)")
+        block.add("description", "Recurring weekly study session for your learning path.")
+        block.add("dtstart", sb["dtstart"])  # date (all-day)
+        block.add("dtend", sb["dtstart"] + timedelta(days=1))
+        block.add("rrule", {"freq": "weekly", "until": sb["until"]})
+        cal.add_component(block)
 
     body = cal.to_ical()
     slug = re.sub(r"[^A-Za-z0-9_-]+", "-", (path.title or "learning-path"))[:60].strip("-") or "learning-path"
@@ -864,16 +901,16 @@ BADGES = [
 ]
 
 
-@router.get("/me/stats")
-async def me_stats(
-    current: User = Depends(require_user),
-    db: Session = Depends(get_db),
-):
-    """Aggregate XP/streak/path-completion + derived earned badges.
-    Badges are a pure projection of the stats — no badge table."""
+def _compute_user_stats(user: User, db: Session) -> dict:
+    """Aggregate a user's XP/streak/path-completion + derived earned badges.
+
+    Shared by the owner view (`/me/stats`) and the public view
+    (`/u/{id}/stats`) so the two can't drift. Contains NO email/PII — only
+    XP, streak, path counts, and badge ids — so it is safe to expose publicly.
+    """
     user_paths = (
         db.query(LearningPath)
-        .filter(LearningPath.user_id == current.id)
+        .filter(LearningPath.user_id == user.id)
         .all()
     )
     total_xp = sum((p.total_xp or 0) for p in user_paths)
@@ -891,6 +928,50 @@ async def me_stats(
     }
     earned_ids = [b["id"] for b in BADGES if stats[b["metric"]] >= b["threshold"]]
     return {**stats, "earned_badges": earned_ids, "badges": BADGES}
+
+
+@router.get("/me/stats")
+async def me_stats(
+    current: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    """Aggregate XP/streak/path-completion + derived earned badges.
+    Badges are a pure projection of the stats — no badge table."""
+    return _compute_user_stats(current, db)
+
+
+# ---------------------------------------------------------------------------
+# AP30 — opt-in public profile
+# ---------------------------------------------------------------------------
+
+class ProfileVisibilityUpdate(BaseModel):
+    is_public_profile: bool
+
+
+@router.patch("/me/profile/visibility")
+async def set_profile_visibility(
+    body: ProfileVisibilityUpdate,
+    current: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    """Owner-only toggle for public profile visibility."""
+    current.is_public_profile = body.is_public_profile
+    db.commit()
+    db.refresh(current)
+    return {"is_public_profile": current.is_public_profile}
+
+
+@router.get("/u/{user_id}/stats")
+async def public_user_stats(user_id: int, db: Session = Depends(get_db)):
+    """PUBLIC (no auth) profile stats for an opted-in user.
+
+    Returns the same PII-free shape as `/me/stats`. Returns 404 both when the
+    user doesn't exist AND when their profile is private — the two are
+    indistinguishable so a private profile never leaks its existence."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user or not user.is_public_profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return _compute_user_stats(user, db)
 
 
 @router.delete("/paths/{path_id}")
@@ -1024,10 +1105,11 @@ async def milestone_feedback(
     db.refresh(path)
 
     # AP3 — enrich the regenerated milestones in background
+    # (AP28: keep them in the path's language)
     for m in created:
         background_tasks.add_task(
             enrich_milestone_resources,
-            m.id, m.title, m.description, goal,
+            m.id, m.title, m.description, goal, path_language,
         )
 
     return _build_path_response(path)
