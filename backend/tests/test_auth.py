@@ -12,8 +12,6 @@ from fastapi.testclient import TestClient
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Use a per-test SQLite file so tests don't pollute the dev DB.
-os.environ["DATABASE_URL"] = "sqlite:///./test_ap9.db"
 # Ensure the resend client falls back to console-log instead of HTTP.
 os.environ.pop("RESEND_API_KEY", None)
 

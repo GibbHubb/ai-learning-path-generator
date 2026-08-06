@@ -12,7 +12,6 @@ from fastapi.testclient import TestClient
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-os.environ["DATABASE_URL"] = "sqlite:///./test_ap11.db"
 os.environ.pop("RESEND_API_KEY", None)
 os.environ["SECRET_KEY"] = "ap11-test-secret"
 

@@ -13,7 +13,6 @@ from fastapi.testclient import TestClient
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-os.environ["DATABASE_URL"] = "sqlite:///./test_ap29.db"
 
 from database import Base, engine, SessionLocal  # noqa: E402
 from main import app  # noqa: E402
