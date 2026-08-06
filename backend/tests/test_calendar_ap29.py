@@ -6,7 +6,7 @@ when opted in.
 """
 import os
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -17,7 +17,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database import Base, engine, SessionLocal  # noqa: E402
 from main import app  # noqa: E402
 from models import LearningPath, Milestone  # noqa: E402
-from scheduling import weekly_study_blocks, DEFAULT_HOURS_PER_WEEK  # noqa: E402
+from scheduling import weekly_study_blocks, DEFAULT_HOURS_PER_WEEK, MAX_BLOCK_HOURS  # noqa: E402
 from icalendar import Calendar  # noqa: E402
 
 
@@ -116,3 +116,81 @@ def test_custom_reminder_days(client):
 def test_calendar_404_for_missing_path(client):
     res = client.get("/api/paths/999999/calendar.ics")
     assert res.status_code == 404
+
+
+# ---- AP29-fu1: timed study blocks ------------------------------------------
+
+def test_timed_block_helper_returns_datetime_and_duration():
+    sb = weekly_study_blocks("6 hours/week", date(2026, 1, 1), date(2026, 3, 1), hour=18)
+    assert sb["dtstart_dt"] == datetime(2026, 1, 1, 18, 0)
+    assert sb["duration"] == timedelta(hours=6)
+    assert sb["block_hours"] == 6
+    # the all-day keys are still there, so existing callers are unaffected
+    assert sb["dtstart"] == date(2026, 1, 1)
+
+
+def test_timed_block_helper_honours_minute():
+    sb = weekly_study_blocks("2 hours/week", date(2026, 1, 1), date(2026, 3, 1),
+                             hour=7, minute=30)
+    assert sb["dtstart_dt"] == datetime(2026, 1, 1, 7, 30)
+
+
+def test_timed_block_duration_is_capped():
+    # A 40 h/week path must not emit a single 40-hour event spanning days.
+    sb = weekly_study_blocks("40 hours/week", date(2026, 1, 1), date(2026, 3, 1), hour=9)
+    assert sb["hours_per_week"] == 40
+    assert sb["duration"] == timedelta(hours=MAX_BLOCK_HOURS)
+
+
+def test_timed_block_helper_rejects_out_of_range():
+    for bad in (-1, 24, 99):
+        with pytest.raises(ValueError):
+            weekly_study_blocks("5 hours/week", date(2026, 1, 1), date(2026, 3, 1), hour=bad)
+    with pytest.raises(ValueError):
+        weekly_study_blocks("5 hours/week", date(2026, 1, 1), date(2026, 3, 1),
+                            hour=10, minute=60)
+
+
+def test_omitting_hour_keeps_the_all_day_block():
+    sb = weekly_study_blocks("5 hours/week", date(2026, 1, 1), date(2026, 3, 1))
+    assert "dtstart_dt" not in sb
+    assert "duration" not in sb
+
+
+def test_study_block_hour_produces_a_timed_vevent(client):
+    pid = _make_path(hours="6 hours/week")
+    res = client.get(f"/api/paths/{pid}/calendar.ics?study_blocks=1&study_block_hour=18")
+    assert res.status_code == 200
+    cal = Calendar.from_ical(res.content)
+    block = next(ev for ev in cal.walk("VEVENT") if "RRULE" in ev)
+    start, end = block["DTSTART"].dt, block["DTEND"].dt
+    # datetime, not date — i.e. a real time-boxed commitment
+    assert isinstance(start, datetime)
+    assert start.hour == 18
+    assert end - start == timedelta(hours=6)
+    # floating time: no tzinfo, so it lands at 18:00 in the viewer's own zone
+    assert start.tzinfo is None
+    assert "RRULE" in block
+
+
+def test_study_block_without_hour_stays_all_day(client):
+    # AP29's shipped behaviour must be untouched for existing links.
+    pid = _make_path()
+    res = client.get(f"/api/paths/{pid}/calendar.ics?study_blocks=1")
+    cal = Calendar.from_ical(res.content)
+    block = next(ev for ev in cal.walk("VEVENT") if "RRULE" in ev)
+    assert not isinstance(block["DTSTART"].dt, datetime)
+    assert isinstance(block["DTSTART"].dt, date)
+
+
+def test_study_block_hour_ignored_without_study_blocks(client):
+    pid = _make_path()
+    res = client.get(f"/api/paths/{pid}/calendar.ics?study_block_hour=18")
+    cal = Calendar.from_ical(res.content)
+    assert [ev for ev in cal.walk("VEVENT") if "RRULE" in ev] == []
+
+
+def test_out_of_range_hour_is_a_422_not_a_500(client):
+    pid = _make_path()
+    res = client.get(f"/api/paths/{pid}/calendar.ics?study_blocks=1&study_block_hour=25")
+    assert res.status_code == 422

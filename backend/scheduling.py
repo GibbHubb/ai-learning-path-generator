@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import math
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Iterable, List, Tuple
 
 
@@ -92,10 +92,19 @@ def estimate_schedule(
     return finish, schedule
 
 
+# AP29-fu1 — a calendar block longer than a long working day is not a
+# usable commitment; a "40 hours/week" path would otherwise emit a single
+# 40-hour VEVENT spanning days. Cap the timed block and let the all-day
+# form carry the heavier commitments.
+MAX_BLOCK_HOURS = 8
+
+
 def weekly_study_blocks(
     time_commitment: str | None,
     start: date | None = None,
     finish: date | None = None,
+    hour: int | None = None,
+    minute: int = 0,
 ) -> dict:
     """AP29 — parameters for a recurring weekly 'study block' calendar event.
 
@@ -103,21 +112,51 @@ def weekly_study_blocks(
     (reusing `parse_time_commitment`) and bounds it to the schedule's finish
     date. All-day / date-valued to match AP25's calendar style.
 
+    AP29-fu1 — passing `hour` (0-23) additionally produces a *timed* block:
+    a real time-boxed commitment starting at that hour, running for the
+    weekly hour budget (capped at MAX_BLOCK_HOURS). The all-day keys are
+    still returned, so callers that ignore the timed keys are unaffected.
+
     Returns:
         {
           "hours_per_week": int,   # from parse_time_commitment
           "dtstart": date,         # first occurrence (defaults to today)
           "until": date,           # RRULE UNTIL — never before dtstart
           "weekday": int,          # 0=Mon .. 6=Sun (dtstart's weekday)
+
+          # present only when `hour` is given:
+          "dtstart_dt": datetime,  # naive/floating — 18:00 in the viewer's tz
+          "duration": timedelta,   # block length, <= MAX_BLOCK_HOURS
+          "block_hours": int,      # duration in whole hours, for the summary
         }
+
+    Raises:
+        ValueError: if `hour` is outside 0-23 or `minute` outside 0-59.
     """
     today = start or date.today()
     until = finish or (today + timedelta(days=7))
     if until < today:
         until = today
-    return {
+
+    out = {
         "hours_per_week": parse_time_commitment(time_commitment),
         "dtstart": today,
         "until": until,
         "weekday": today.weekday(),
     }
+
+    if hour is not None:
+        if not 0 <= hour <= 23:
+            raise ValueError(f"hour must be 0-23, got {hour}")
+        if not 0 <= minute <= 59:
+            raise ValueError(f"minute must be 0-59, got {minute}")
+        block_hours = min(out["hours_per_week"], MAX_BLOCK_HOURS)
+        # Naive datetime = RFC-5545 "floating" time: renders at the stated
+        # wall-clock hour in whatever timezone the calendar app is in, which
+        # is what someone asking for "18:00" actually wants. Avoids shipping
+        # a VTIMEZONE component and a tz database dependency.
+        out["dtstart_dt"] = datetime(today.year, today.month, today.day, hour, minute)
+        out["duration"] = timedelta(hours=block_hours)
+        out["block_hours"] = block_hours
+
+    return out

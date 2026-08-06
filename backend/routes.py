@@ -1,7 +1,7 @@
 import logging
 import re
 from datetime import date, timedelta
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query, Request, Response
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
@@ -638,6 +638,8 @@ async def export_path_calendar(
     path_id: int,
     study_blocks: bool = False,
     reminder_days: int = 1,
+    study_block_hour: Optional[int] = Query(None, ge=0, le=23),
+    study_block_minute: int = Query(0, ge=0, le=59),
     db: Session = Depends(get_db),
 ):
     """Build an .ics download of the path's milestones scheduled from
@@ -650,6 +652,13 @@ async def export_path_calendar(
     - When `study_blocks=1`, a recurring weekly all-day study-block VEVENT is
       added (RRULE FREQ=WEEKLY, UNTIL=schedule finish). Default (off) keeps
       the AP25 milestone-only calendar unchanged apart from the VALARMs.
+
+    AP29-fu1:
+    - Adding `study_block_hour` (0-23, optional `study_block_minute`) upgrades
+      that block from all-day to a *timed* VEVENT starting at that hour and
+      running for the weekly hour budget (capped at 8h). Omitting it keeps the
+      all-day block exactly as AP29 shipped it, so existing links are
+      unaffected. Ignored unless `study_blocks=1`.
     """
     from icalendar import Calendar, Event, Alarm  # local import — keeps cold-start light
     path = db.query(LearningPath).filter(LearningPath.id == path_id).first()
@@ -680,13 +689,22 @@ async def export_path_calendar(
 
     # AP29 — optional recurring weekly study block.
     if study_blocks:
-        sb = weekly_study_blocks(path.time_commitment, date.today(), finish)
+        sb = weekly_study_blocks(path.time_commitment, date.today(), finish,
+                                 hour=study_block_hour, minute=study_block_minute)
         block = Event()
         block.add("uid", f"path-{path.id}-studyblock@ai-learning-path")
-        block.add("summary", f"📚 Study block (~{sb['hours_per_week']}h/week)")
         block.add("description", "Recurring weekly study session for your learning path.")
-        block.add("dtstart", sb["dtstart"])  # date (all-day)
-        block.add("dtend", sb["dtstart"] + timedelta(days=1))
+        if "dtstart_dt" in sb:
+            # AP29-fu1 — real time-boxed commitment. Floating (naive) times, so
+            # the block lands at the requested wall-clock hour in the viewer's
+            # own timezone rather than being pinned to the server's.
+            block.add("summary", f"📚 Study block ({sb['block_hours']}h)")
+            block.add("dtstart", sb["dtstart_dt"])
+            block.add("dtend", sb["dtstart_dt"] + sb["duration"])
+        else:
+            block.add("summary", f"📚 Study block (~{sb['hours_per_week']}h/week)")
+            block.add("dtstart", sb["dtstart"])  # date (all-day)
+            block.add("dtend", sb["dtstart"] + timedelta(days=1))
         block.add("rrule", {"freq": "weekly", "until": sb["until"]})
         cal.add_component(block)
 
