@@ -88,6 +88,86 @@ app.add_middleware(
 # Include API routes
 app.include_router(router, prefix="/api", tags=["learning-paths"])
 
+# ---------------------------------------------------------------------------
+# AP30-fu1 — per-user Open Graph unfurl for public profiles
+#
+# These are mounted on `app` at the TOP level (not under /api) so the path
+# mirrors the SPA's own /u/:id route. A crawler hitting this origin reads
+# per-user meta; a human is bounced straight to the SPA. The API router stays
+# under /api, so there is no path clash with /, /health or /api/u/{id}/stats.
+# ---------------------------------------------------------------------------
+# NB: Request/HTTPException/Depends are imported explicitly here rather than
+# relied on from the top of the file — the module only imports `FastAPI` up
+# there, and the rate-limiting block that pulls in Request/HTTPException sits
+# BELOW this point. A signature annotation is evaluated at def time, so
+# leaning on the later import would raise NameError at startup.
+from fastapi import (  # noqa: E402
+    Depends as _Depends,
+    HTTPException as _HTTPException,
+    Request as _Request,
+)
+from fastapi.responses import HTMLResponse, Response as _Response  # noqa: E402
+from sqlalchemy.orm import Session as _Session  # noqa: E402
+
+from og import (  # noqa: E402
+    build_profile_meta_html,
+    public_display_name,
+    render_profile_card_png,
+)
+from routes import _compute_user_stats  # noqa: E402
+from database import get_db  # noqa: E402
+from models import User  # noqa: E402
+
+# Absolute URLs are mandatory for og:image — crawlers reject relative ones.
+# Falls back to the request's own base_url so local dev works with no config.
+_PUBLIC_BACKEND_URL = _os.getenv("PUBLIC_BACKEND_URL", "").rstrip("/")
+_FRONTEND_ORIGIN = _os.getenv("FRONTEND_ORIGIN", "http://localhost:5173").rstrip("/")
+
+
+def _backend_base(request: _Request) -> str:
+    return _PUBLIC_BACKEND_URL or str(request.base_url).rstrip("/")
+
+
+def _public_user_or_404(user_id: int, db: _Session) -> User:
+    """Load an opted-in public user, else 404.
+
+    Missing and private are deliberately indistinguishable — same rule as
+    AP30's /api/u/{id}/stats, so a private profile never leaks its existence.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user or not user.is_public_profile:
+        raise _HTTPException(status_code=404, detail="Profile not found")
+    return user
+
+
+@app.get("/u/{user_id}", response_class=HTMLResponse, include_in_schema=False)
+async def public_profile_unfurl(user_id: int, request: _Request,
+                                db: _Session = _Depends(get_db)):
+    """Crawler-facing HTML shell with per-user OG meta; humans get redirected."""
+    user = _public_user_or_404(user_id, db)
+    stats = _compute_user_stats(user, db)
+    base = _backend_base(request)
+    return HTMLResponse(build_profile_meta_html(
+        display_name=public_display_name(user.id),
+        stats=stats,
+        card_url=f"{base}/u/{user.id}/card.png",
+        spa_url=f"{_FRONTEND_ORIGIN}/u/{user.id}",
+        canonical_url=f"{base}/u/{user.id}",
+    ))
+
+
+@app.get("/u/{user_id}/card.png", include_in_schema=False)
+async def public_profile_card(user_id: int, db: _Session = _Depends(get_db)):
+    """The 1200x630 OG image, generated per request (cached by the CDN/UA)."""
+    user = _public_user_or_404(user_id, db)
+    stats = _compute_user_stats(user, db)
+    png = render_profile_card_png(public_display_name(user.id), stats)
+    return _Response(
+        content=png,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=300"},
+    )
+
 # Rate Limiting Middleware
 from fastapi import Request, HTTPException
 import time

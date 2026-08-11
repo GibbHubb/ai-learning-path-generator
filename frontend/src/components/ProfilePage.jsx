@@ -9,6 +9,14 @@ import BadgeGrid from './BadgeGrid';
 
 const API_BASE = 'http://localhost:8000/api';
 
+// AP30-fu1 — the backend origin (API_BASE without the /api suffix).
+// The share link must point HERE, not at the frontend origin: the frontend
+// serves a static index.html, so a crawler there can only ever read the
+// generic OG card. The backend's /u/:id route emits per-user meta and bounces
+// humans straight back to the SPA, so the pasted link both unfurls correctly
+// and still opens the app when clicked.
+const BACKEND_ORIGIN = API_BASE.replace(/\/api\/?$/, '');
+
 const ProfilePage = ({ user, onBack }) => {
     const [stats, setStats] = useState(null);
     const [error, setError] = useState(null);
@@ -33,7 +41,7 @@ const ProfilePage = ({ user, onBack }) => {
         }
     }, [user]);
 
-    const publicUrl = user ? `${window.location.origin}/u/${user.id}` : '';
+    const publicUrl = user ? `${BACKEND_ORIGIN}/u/${user.id}` : '';
 
     const handleTogglePublic = async () => {
         const next = !isPublic;
