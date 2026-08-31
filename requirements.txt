@@ -1,2 +1,20 @@
-# AP31 — Vercel installs from the project root. The real list lives with the app.
--r backend/requirements.txt
+# AP31 — ONE list, at the repo root.
+#
+# It lives here because Vercel's Python builder reads the root file and
+# cannot parse an `-r other/file.txt` include (it fails the build with
+# "could not parse requirements.txt"). A second copy under backend/ would
+# only drift, and the deployed one is the copy that matters.
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+sqlalchemy==2.0.36
+# AP31 - Postgres driver. There was none, so DATABASE_URL could only ever be SQLite.
+psycopg2-binary==2.9.9
+openai>=1.0.0
+anthropic>=0.39.0
+python-dotenv==1.0.1
+pydantic==2.9.2
+python-multipart==0.0.12
+pytest==8.3.3
+httpx==0.27.2
+icalendar>=5.0.0
+Pillow==10.4.0  # AP31 - pinned: the OG card is rendered by it
