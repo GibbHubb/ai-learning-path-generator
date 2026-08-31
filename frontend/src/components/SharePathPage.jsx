@@ -3,7 +3,10 @@ import { forkPath, getPublicNotes } from '../services/auth';
 import { downloadIcs } from '../utils/exportMarkdown';
 import './LearningPath.css';
 
-const API_BASE = 'http://localhost:8000/api';
+// AP31 — relative by default, so the SPA and the API share an origin in
+// production and there is no build-time URL to get wrong. Local dev is
+// unchanged: vite.config.js already proxies /api to localhost:8000.
+const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
 function parseResource(r) {
     try {

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import html
 from io import BytesIO
+from pathlib import Path
 
 # 1200x630 is the size every major unfurler (Slack, X, Facebook, LinkedIn)
 # crops to; anything else gets letterboxed or centre-cropped unpredictably.
@@ -50,15 +51,33 @@ def public_display_name(user_id: int) -> str:
 # PNG card
 # ---------------------------------------------------------------------------
 
-def _font(size: int, bold: bool = False):
-    """Best-available font at ``size``.
+_ASSETS = Path(__file__).resolve().parent / "assets"
 
-    Pillow's bundled bitmap default does not scale, so a 1200x630 card drawn
-    with it is illegibly small. Try a few fonts that exist on typical Linux and
-    Windows hosts before falling back — the fallback still renders, just
-    smaller, so a missing font degrades the card rather than 500-ing the route.
+
+def _font(size: int, bold: bool = False):
+    """The card's font at ``size``, from a font BUNDLED with the app.
+
+    AP31 — this used to probe for system font names (`arial.ttf`,
+    `DejaVuSans.ttf`, `segoeui.ttf`…) and fall back to
+    ``ImageFont.load_default()``, whose result the docstring itself called
+    illegibly small because Pillow's bitmap default does not scale. On a host
+    where none of those names resolve — a serverless Python runtime, for
+    instance — the route would still return **200 with a valid PNG**, a
+    validator would still show *a* card, and "the card renders with that
+    learner's stats" would be technically true and practically false. The
+    failure was invisible to every check except looking at the image.
+
+    So the font ships with the repo (DejaVu, Bitstream Vera licence — free to
+    bundle and redistribute) and nothing is guessed. The system probe is kept
+    only as a fallback behind it, for a checkout where the assets are missing.
     """
     from PIL import ImageFont
+
+    bundled = _ASSETS / ("DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf")
+    try:
+        return ImageFont.truetype(str(bundled), size)
+    except (OSError, IOError):
+        pass
 
     candidates = (
         ["DejaVuSans-Bold.ttf", "arialbd.ttf", "Arial Bold.ttf", "seguisb.ttf"]

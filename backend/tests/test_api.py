@@ -17,9 +17,33 @@ def test_read_main():
     assert response.json()["message"] == "AI Learning Path Generator API"
 
 def test_health_check():
+    """AP31 — /health reports the DATABASE, so it can say 'down'.
+
+    This used to assert `{"status": "healthy"}`, a constant the route returned
+    without touching anything. That is the shape of check that let a deleted
+    database read as healthy for days on Poly_Tracker (PT22): it can only ever
+    pass, so it tells you nothing.
+    """
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "healthy"}
+    assert response.json() == {"status": "healthy", "db": "up"}
+
+
+def test_health_check_reports_a_dead_database():
+    """The negative half — without it, the check above proves nothing.
+
+    A health route is only worth having if it can FAIL, so make it fail: point
+    the engine at a database that is not there and require a 503.
+    """
+    from sqlalchemy.exc import OperationalError
+
+    with patch("main.engine.connect", side_effect=OperationalError("SELECT 1", {}, Exception("no such host"))):
+        response = client.get("/health")
+
+    assert response.status_code == 503
+    body = response.json()
+    assert body["status"] == "unhealthy"
+    assert body["db"] == "down"
 
 @patch("routes.generate_learning_path")
 def test_generate_learning_path(mock_generate):

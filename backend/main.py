@@ -1,7 +1,7 @@
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from database import engine, Base
+from database import engine, Base, is_sqlite
 from routes import router
 import uvicorn
 
@@ -14,9 +14,18 @@ logging.basicConfig(
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
-# Migrate existing SQLite tables (add columns that don't exist yet)
+# Migrate existing SQLite tables (add columns that don't exist yet).
+#
+# AP31 — gated on SQLite, which is what it always was: every statement below is
+# SQLite dialect (`BOOLEAN ... DEFAULT 0`, `DATETIME`), and Postgres rejects
+# both. On a fresh Postgres schema `create_all` above has already made every
+# column, so each guard is False and nothing runs — but that is luck, not
+# design: the day a model grows a column, this block would fire invalid DDL at
+# import time and take the whole app down on startup. It back-patches old local
+# SQLite files, so it runs only for them.
 from sqlalchemy import inspect, text
-with engine.connect() as conn:
+if is_sqlite:
+  with engine.connect() as conn:
     cols = {c["name"] for c in inspect(engine).get_columns("learning_paths")}
     if "is_public" not in cols:
         conn.execute(text("ALTER TABLE learning_paths ADD COLUMN is_public BOOLEAN NOT NULL DEFAULT 0"))
@@ -106,7 +115,7 @@ from fastapi import (  # noqa: E402
     HTTPException as _HTTPException,
     Request as _Request,
 )
-from fastapi.responses import HTMLResponse, Response as _Response  # noqa: E402
+from fastapi.responses import HTMLResponse, JSONResponse, Response as _Response  # noqa: E402
 from sqlalchemy.orm import Session as _Session  # noqa: E402
 
 from og import (  # noqa: E402
@@ -213,7 +222,28 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    """AP31 — report the DATABASE, not a constant.
+
+    This returned `{"status": "healthy"}` unconditionally, which is the same
+    defect Poly_Tracker's health route had (PT22): a deleted database read as
+    healthy for days, because nothing in the check touched it. On a serverless
+    deploy backed by a poolerRemote Postgres, "the function is up" and "the app
+    works" are entirely different claims.
+
+    503 when the database is unreachable, so a monitor — or a person — sees the
+    difference.
+    """
+    from sqlalchemy import text
+
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return {"status": "healthy", "db": "up"}
+    except Exception as exc:  # noqa: BLE001 — any failure to reach the DB counts
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unhealthy", "db": "down", "error": str(exc)[:200]},
+        )
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

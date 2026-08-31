@@ -1,0 +1,2 @@
+# AP31 — Vercel installs from the project root. The real list lives with the app.
+-r backend/requirements.txt

@@ -7,7 +7,10 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import BadgeGrid from './BadgeGrid';
 
-const API_BASE = 'http://localhost:8000/api';
+// AP31 — relative by default, so the SPA and the API share an origin in
+// production and there is no build-time URL to get wrong. Local dev is
+// unchanged: vite.config.js already proxies /api to localhost:8000.
+const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
 // AP30-fu1 — the backend origin (API_BASE without the /api suffix).
 // The share link must point HERE, not at the frontend origin: the frontend
