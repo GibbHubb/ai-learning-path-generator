@@ -10,25 +10,22 @@
       }
     },
     {
-      "src": "api/index.py",
-      "use": "@vercel/python",
-      "config": {
-        "includeFiles": "backend/**"
-      }
+      "src": "backend/index.py",
+      "use": "@vercel/python"
     }
   ],
   "routes": [
     {
       "src": "/health",
-      "dest": "/api/index.py"
+      "dest": "/backend/index.py"
     },
     {
       "src": "/api/(.*)",
-      "dest": "/api/index.py"
+      "dest": "/backend/index.py"
     },
     {
       "src": "/u/(.*)",
-      "dest": "/api/index.py"
+      "dest": "/backend/index.py"
     },
     {
       "src": "/(.*)",
