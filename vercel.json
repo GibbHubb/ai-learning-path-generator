@@ -13,7 +13,7 @@
       "src": "backend/index.py",
       "use": "@vercel/python",
       "config": {
-        "includeFiles": "backend/**"
+        "includeFiles": "**"
       }
     }
   ],
