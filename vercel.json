@@ -28,6 +28,16 @@
     },
     {
       "src": "/u/(.*)",
+      "has": [
+        {
+          "type": "query",
+          "key": "spa"
+        }
+      ],
+      "dest": "/frontend/index.html"
+    },
+    {
+      "src": "/u/(.*)",
       "dest": "/backend/index.py"
     },
     {

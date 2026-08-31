@@ -160,7 +160,16 @@ async def public_profile_unfurl(user_id: int, request: _Request,
         display_name=public_display_name(user.id),
         stats=stats,
         card_url=f"{base}/u/{user.id}/card.png",
-        spa_url=f"{_FRONTEND_ORIGIN}/u/{user.id}",
+        # AP31 — `?spa=1` is what stops this bouncing forever.
+        #
+        # On the single-origin deploy FRONTEND_ORIGIN and the backend base are
+        # the SAME host, so the human redirect pointed /u/1 straight back at
+        # /u/1 and looped. Crawlers never noticed — they read the meta and stop,
+        # which is why every check passed while the page was unusable by people.
+        # The marker lets the edge route the second hit to the SPA's index.html
+        # (see vercel.json) with the pathname still /u/1, which is what
+        # getPublicProfileId() reads. No user-agent sniffing, as intended.
+        spa_url=f"{_FRONTEND_ORIGIN}/u/{user.id}?spa=1",
         canonical_url=f"{base}/u/{user.id}",
     ))
 
