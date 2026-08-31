@@ -153,7 +153,10 @@ cd ai-learning-path-generator
 cd backend
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
+# AP31 — the dependency list lives at the repo ROOT: Vercel's Python builder
+# reads it from there and cannot follow an `-r ../file` include, so there is
+# deliberately only one copy.
+pip install -r ../requirements.txt
 ```
 
 3. **Configure environment variables**
