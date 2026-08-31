@@ -22,7 +22,18 @@ hard way:
    opaque platform error into a 500 that says what happened. It hides nothing:
    every route still fails, loudly, with the traceback attached.
 """
+import os
+import sys
 import traceback
+
+# The function runs with cwd=/var/task while this file sits in
+# /var/task/backend, so `main` is NOT importable by default — the observed
+# failure was a plain `ModuleNotFoundError: No module named 'main'`. Vercel
+# imports the entry point by path rather than as a package, so put its own
+# directory on the path explicitly. `includeFiles: backend/**` in vercel.json
+# is the other half: the tracer cannot follow this, so without it the siblings
+# are never uploaded at all.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 _IMPORT_ERROR: str | None = None
 
