@@ -1,4 +1,6 @@
+import hmac
 import logging
+import os
 import re
 from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query, Request, Response
@@ -729,11 +731,16 @@ async def get_public_path(path_id: int, db: Session = Depends(get_db)):
 
 # AP2 — toggle public sharing
 @router.patch("/paths/{path_id}/share", response_model=LearningPathResponse)
-async def share_path(path_id: int, body: ShareUpdate, db: Session = Depends(get_db)):
-    """Set a path's public sharing status."""
+async def share_path(path_id: int, body: ShareUpdate, request: Request,
+                     db: Session = Depends(get_db),
+                     current: Optional[User] = Depends(get_current_user_optional)):
+    """Set a path's public sharing status.
+
+    AP32 — took no auth at all, so anyone could publish any user's private path to
+    /explore, or unpublish theirs.
+    """
     path = db.query(LearningPath).filter(LearningPath.id == path_id).first()
-    if not path:
-        raise HTTPException(status_code=404, detail="Learning path not found")
+    path = _authorize_path(path, current, request)
     path.is_public = body.is_public
     db.commit()
     db.refresh(path)
@@ -742,15 +749,25 @@ async def share_path(path_id: int, body: ShareUpdate, db: Session = Depends(get_
 
 # AP4 — milestone completion with XP + streak (delegates to complete_milestone)
 @router.patch("/milestones/{milestone_id}")
-async def update_milestone(milestone_id: int, update: MilestoneUpdate, db: Session = Depends(get_db)):
+async def update_milestone(milestone_id: int, update: MilestoneUpdate, request: Request,
+                           db: Session = Depends(get_db),
+                           current: Optional[User] = Depends(get_current_user_optional)):
     """Update milestone completion status + recompute XP and streak.
 
     AP23: when sub-tasks exist, manual (un)complete cascades to every task
     so task-state and milestone-state stay coherent.
+
+    AP32 — took no auth at all, so anyone could toggle any milestone and move that
+    path's total_xp and streak_days.
     """
     milestone = db.query(Milestone).filter(Milestone.id == milestone_id).first()
     if not milestone:
         raise HTTPException(status_code=404, detail="Milestone not found")
+    # 404 with the MILESTONE's wording, so a wrong owner cannot tell "exists but not
+    # yours" from "no such milestone".
+    _authorize_path(
+        db.query(LearningPath).filter(LearningPath.id == milestone.learning_path_id).first(),
+        current, request, detail="Milestone not found")
 
     total_xp, streak_days = complete_milestone(milestone, update.completed, db)
 
@@ -993,11 +1010,16 @@ async def public_user_stats(user_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/paths/{path_id}")
-async def delete_path(path_id: int, db: Session = Depends(get_db)):
-    """Delete a learning path"""
+async def delete_path(path_id: int, request: Request,
+                      db: Session = Depends(get_db),
+                      current: Optional[User] = Depends(get_current_user_optional)):
+    """Delete a learning path.
+
+    AP32 — took no auth at all, so an anonymous caller could delete ANY user's path
+    and every milestone under it, by id.
+    """
     path = db.query(LearningPath).filter(LearningPath.id == path_id).first()
-    if not path:
-        raise HTTPException(status_code=404, detail="Learning path not found")
+    path = _authorize_path(path, current, request)
     db.delete(path)
     db.commit()
     return {"success": True, "message": "Learning path deleted"}
@@ -1009,7 +1031,9 @@ async def milestone_feedback(
     milestone_id: int,
     body: DifficultyFeedback,
     background_tasks: BackgroundTasks,
+    request: Request,
     db: Session = Depends(get_db),
+    current: Optional[User] = Depends(get_current_user_optional),
 ):
     """Record user's difficulty feedback on a milestone.
 
@@ -1024,9 +1048,12 @@ async def milestone_feedback(
     if not milestone:
         raise HTTPException(status_code=404, detail="Milestone not found")
 
-    path = db.query(LearningPath).filter(LearningPath.id == milestone.learning_path_id).first()
-    if not path:
-        raise HTTPException(status_code=404, detail="Learning path not found")
+    # AP32 — took no auth at all. This route DELETES the remaining milestone rows and
+    # regenerates them with a paid gpt-4o call, so anonymous access was both a data-loss
+    # hole and a way to spend someone else's OpenAI budget by id.
+    path = _authorize_path(
+        db.query(LearningPath).filter(LearningPath.id == milestone.learning_path_id).first(),
+        current, request, detail="Milestone not found")
 
     milestone.difficulty_feedback = body.feedback
 
@@ -1139,6 +1166,33 @@ def _load_owned_path(path_id: int, current: User, db: Session) -> LearningPath:
     if not path or path.user_id != current.id:
         raise HTTPException(status_code=404, detail="Learning path not found")
     return path
+
+
+def _authorize_path(path: Optional[LearningPath], current: Optional[User],
+                    request: Request, detail: str = "Learning path not found") -> LearningPath:
+    """AP32 — the ownership gate for routes that also serve ANONYMOUS owners.
+
+    `_load_owned_path` requires a signed-in user, which is right for the routes that
+    already use it. These four cannot: a visitor generates a path before signing up and
+    must keep editing it through the `ap_anon_id` cookie (`auth.py` claims those rows on
+    verify). So authorise the two cases explicitly rather than dropping the check.
+
+    Raises **404, never 403** — the same missing-and-forbidden-are-indistinguishable
+    rule the rest of this file already applies, so an attacker cannot enumerate which
+    ids exist.
+    """
+    if not path:
+        raise HTTPException(status_code=404, detail=detail)
+    if current is not None:
+        if path.user_id == current.id:
+            return path
+    else:
+        anon_id = request.cookies.get("ap_anon_id")
+        # A path with no owner at all is still owned by SOMEONE's cookie; an absent or
+        # mismatched cookie is not a licence to edit it.
+        if anon_id and path.anon_session_id and path.anon_session_id == anon_id:
+            return path
+    raise HTTPException(status_code=404, detail=detail)
 
 
 @router.get("/paths/{path_id}/revisions", response_model=List[RevisionOut])
@@ -1449,9 +1503,24 @@ async def unsubscribe(token: str, db: Session = Depends(get_db)):
 
 
 @router.post("/jobs/run-reminders")
-async def manual_run_reminders(db: Session = Depends(get_db)):
+async def manual_run_reminders(request: Request, db: Session = Depends(get_db)):
     """Manual trigger — used by the optional APScheduler daily job and as a
-    fallback for hosts where the scheduler isn't running. Idempotent per day."""
+    fallback for hosts where the scheduler isn't running. Idempotent per day.
+
+    AP32 — took no auth at all, and it fires the REAL Resend pipeline at every
+    opted-in address. Now gated on a shared secret.
+
+    If `CRON_SECRET` is unset the route is DISABLED (503) rather than open: an
+    unset secret must never mean "no check". The scheduler path calls
+    `send_reminders(db)` directly and is unaffected.
+    """
+    expected = os.environ.get("CRON_SECRET")
+    if not expected:
+        raise HTTPException(
+            status_code=503,
+            detail="Reminder trigger is disabled: CRON_SECRET is not configured.")
+    if not hmac.compare_digest(request.headers.get("X-Cron-Secret", ""), expected):
+        raise HTTPException(status_code=401, detail="Not authenticated")
     summary = send_reminders(db)
     return summary
 
