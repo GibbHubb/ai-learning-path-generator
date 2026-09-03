@@ -82,9 +82,16 @@ app = FastAPI(
 
 # Configure CORS
 import os as _os
-_cors_origins = _os.getenv(
+import config as _config
+# AP38 — with allow_credentials=True (below), a permissive origin is a real problem.
+# In production CORS_ORIGINS is required; the localhost default is dev-only. require()
+# raises here at import in production ONLY if unset — which is the intended hard stop
+# for a misconfigured deploy, and main.py is imported eagerly (not per-request), so it
+# fails fast and visibly rather than silently allowing localhost against a live cookie.
+_config.warn_unset_required()
+_cors_origins = _config.require(
     "CORS_ORIGINS",
-    "http://localhost:5173,http://localhost:3000",
+    dev_default="http://localhost:5173,http://localhost:3000",
 ).split(",")
 app.add_middleware(
     CORSMiddleware,

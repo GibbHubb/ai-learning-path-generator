@@ -27,6 +27,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from models import LearningPath, Milestone, ReminderLog, User
+import config
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,13 @@ INACTIVITY_DAYS = 3
 
 
 def _secret() -> bytes:
-    return (os.getenv("SECRET_KEY") or "dev-secret-change-me").encode("utf-8")
+    # AP38 — was a hardcoded `os.getenv("SECRET_KEY") or <public constant>`. That constant is in
+    # the public repo, so an unset SECRET_KEY made every unsubscribe token forgeable.
+    # require() now RAISES in production, and in development mints a per-PROCESS random
+    # default — so a laptop still boots but the value is never a constant anyone can read
+    # from git. (Tokens do not survive a dev restart, which is correct: they never should
+    # have been verifiable with a published key.)
+    return config.require("SECRET_KEY").encode("utf-8")
 
 
 def make_unsubscribe_token(user_id: int) -> str:

@@ -19,6 +19,8 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
+import config
+
 import httpx
 from fastapi import Cookie, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session as DbSession
@@ -188,7 +190,7 @@ def verify_token(token: str, request: Request, response: Response, db: DbSession
         httponly=True,
         samesite="lax",
         max_age=SESSION_TTL_DAYS * 24 * 3600,
-        secure=os.getenv("APP_COOKIE_SECURE", "0") == "1",
+        secure=config.bool_flag("APP_COOKIE_SECURE", default=config.is_production()),
     )
     if anon_id:
         # Clear the now-claimed anon cookie
@@ -243,6 +245,6 @@ def ensure_anon_id(request: Request, response: Response) -> str:
         httponly=True,
         samesite="lax",
         max_age=365 * 24 * 3600,
-        secure=os.getenv("APP_COOKIE_SECURE", "0") == "1",
+        secure=config.bool_flag("APP_COOKIE_SECURE", default=config.is_production()),
     )
     return new_id
