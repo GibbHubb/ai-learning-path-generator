@@ -10,7 +10,6 @@ sqlalchemy==2.0.36
 # AP31 - Postgres driver. There was none, so DATABASE_URL could only ever be SQLite.
 psycopg2-binary==2.9.9
 openai>=1.0.0
-anthropic>=0.39.0
 python-dotenv==1.0.1
 pydantic==2.9.2
 # AP31 - pydantic's EmailStr needs this at import time, and routes.py uses it.

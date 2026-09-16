@@ -1,8 +1,8 @@
-import os
 import json
 import logging
-from openai import OpenAI
 from dotenv import load_dotenv
+
+import llm
 
 load_dotenv()
 
@@ -42,7 +42,7 @@ def language_instruction(language: str | None) -> str:
     )
 
 def generate_learning_path(goal: str, experience_level: str, time_commitment: str, language: str = "en"):
-    """Generate a structured learning path using OpenAI"""
+    """Generate a structured learning path (Gemini via llm.chat_json — AP46)"""
 
     # Normalise unknown languages → English so the cache key + prompt stay
     # consistent (an attacker can't poison the cache with arbitrary codes).
@@ -55,8 +55,6 @@ def generate_learning_path(goal: str, experience_level: str, time_commitment: st
         logger.info(f"Returning cached result for: {cache_key}")
         return CACHE[cache_key]
 
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    
     # TODO: might want to cache common paths later
     prompt = f"""You are an expert learning path designer. Create a detailed, structured learning path for someone who wants to: {goal}
 
@@ -89,17 +87,10 @@ Return your response as a JSON object with this exact structure:
 Make the path progressive - each milestone should build on previous ones. Be specific and actionable. The `category` field MUST be one of the seven allowed values, with exact casing."""
 
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": "You are an expert learning path designer who creates structured, actionable learning plans. Always respond with valid JSON." + language_instruction(language)},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,
-            response_format={"type": "json_object"}
-        )
-        
-        result = json.loads(response.choices[0].message.content)
+        result = json.loads(llm.chat_json(
+            "You are an expert learning path designer who creates structured, actionable learning plans. Always respond with valid JSON." + language_instruction(language),
+            prompt,
+        ))
         
         # Store in cache
         CACHE[cache_key] = result
@@ -107,7 +98,7 @@ Make the path progressive - each milestone should build on previous ones. Be spe
     
     except Exception as e:
         logger.error(f"Error generating learning path: {e}")
-        raise Exception(f"Failed to generate learning path: {str(e)}")
+        raise  # AP46: keep the type — routes map a RateLimitError to "busy, try again"
 
 
 def stream_learning_path(goal: str, experience_level: str, time_commitment: str, language: str = "en"):
@@ -134,7 +125,7 @@ def adjust_difficulty(
 ):
     """AP5 — Regenerate remaining milestones at adjusted difficulty.
 
-    Uses OpenAI (same path as generate_learning_path) with a prompt that:
+    Uses llm.chat_json (same path as generate_learning_path) with a prompt that:
     - Lists already-completed milestone titles (for coherence)
     - Lists the remaining milestone titles to be replaced
     - Instructs GPT to produce N new milestones at higher/lower difficulty
@@ -142,8 +133,6 @@ def adjust_difficulty(
     Yields milestones one-by-one (generator) so callers can stream.
     Returns a list of the generated milestones.
     """
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
     adjustment = {
         "too_easy": "The learner found the path too easy so far. Make the remaining milestones MORE challenging — go deeper, cover advanced topics, and expect the learner to tackle harder practice projects.",
         "too_hard": "The learner found the path too difficult so far. Make the remaining milestones EASIER — slow the pace, add more foundational explanations, and suggest gentler practice projects.",
@@ -186,20 +175,14 @@ Return ONLY a JSON object with this exact structure:
 """
 
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": "You are an expert learning path designer. Always respond with valid JSON." + language_instruction(language)},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.7,
-            response_format={"type": "json_object"},
-        )
-        result = json.loads(response.choices[0].message.content)
+        result = json.loads(llm.chat_json(
+            "You are an expert learning path designer. Always respond with valid JSON." + language_instruction(language),
+            prompt,
+        ))
         return result.get("milestones", [])
     except Exception as e:
         logger.error(f"Error adjusting difficulty: {e}")
-        raise Exception(f"Failed to adjust difficulty: {str(e)}")
+        raise  # AP46: keep the type (see generate_learning_path)
 
 
 def build_enrichment_prompt(title: str, description: str, goal: str, language: str = "en") -> str:
@@ -227,7 +210,7 @@ def build_enrichment_prompt(title: str, description: str, goal: str, language: s
 
 
 def enrich_milestone_resources(milestone_id: int, title: str, description: str, goal: str, language: str = "en"):
-    """Enrich a milestone with 2-3 real resource links via Claude Haiku.
+    """Enrich a milestone with 2-3 real resource links (Gemini via llm.chat_json — AP46).
 
     Runs synchronously (called from a BackgroundTask thread).
     Updates the milestone's resources column in the DB.
@@ -235,16 +218,8 @@ def enrich_milestone_resources(milestone_id: int, title: str, description: str, 
     AP28: `language` (default "en") localises the free-text resource titles;
     unknown codes normalise to English inside build_enrichment_prompt.
     """
-    import re
-    try:
-        import anthropic
-    except ImportError:
-        logger.warning("anthropic SDK not installed — skipping resource enrichment")
-        return
-
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        logger.warning("ANTHROPIC_API_KEY not set — skipping resource enrichment")
+    if llm.provider() is None:
+        logger.warning("no AI provider key set (GEMINI_API_KEY) — skipping resource enrichment")
         return
 
     from database import SessionLocal
@@ -253,18 +228,8 @@ def enrich_milestone_resources(milestone_id: int, title: str, description: str, 
     prompt = build_enrichment_prompt(title, description, goal, language)
 
     try:
-        client = anthropic.Anthropic(api_key=api_key)
-        message = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=500,
-            messages=[{"role": "user", "content": prompt}],
-        )
-
-        raw = message.content[0].text.strip()
-        # Strip markdown fences if present
-        raw = re.sub(r'^```json?\s*', '', raw)
-        raw = re.sub(r'\s*```$', '', raw)
-        parsed = json.loads(raw)
+        # A top-level JSON ARRAY, so no json_object mode (it would force an object).
+        parsed = json.loads(llm.chat_json(None, prompt, json_object=False, light=True))
 
         if not isinstance(parsed, list):
             logger.warning(f"Enrichment for milestone {milestone_id}: expected list, got {type(parsed)}")

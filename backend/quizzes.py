@@ -1,7 +1,7 @@
 """AP8 — milestone quiz generation + grading.
 
 Generation:
-  * Claude Haiku via the existing `anthropic` SDK already on requirements.txt
+  * Gemini (free tier) via `llm.chat_json` — AP46; was Claude Haiku on a paid key
   * Strict JSON-only system message; the model returns a list of 3-5 MCQs
     with `question`, `options[]` (exactly 4), `correct_index` (0-3), and a
     short `explanation`.
@@ -24,13 +24,13 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy.orm import Session
 
+import llm
 from models import Milestone, MilestoneQuiz
 
 logger = logging.getLogger(__name__)
@@ -106,38 +106,22 @@ Return ONLY valid JSON (no markdown, no prose, no code fences). The top-level va
 
 
 def _call_claude(milestone: Milestone) -> list[QuizQuestion] | None:
-    """Best-effort Claude call. Returns None on any failure (network, parse,
-    validation) so the caller can short-circuit to a 502."""
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        logger.warning("[AP8] ANTHROPIC_API_KEY missing — cannot generate quiz")
-        return None
-    try:
-        import anthropic
-    except ImportError:
-        logger.warning("[AP8] anthropic SDK not installed")
+    """Best-effort model call (the name predates AP46's move to Gemini). Returns None on
+    any failure (network, parse, validation) so the caller can short-circuit to a 502."""
+    if llm.provider() is None:
+        logger.warning("[AP8] no AI provider key set (GEMINI_API_KEY) — cannot generate quiz")
         return None
 
     try:
-        client = anthropic.Anthropic(api_key=api_key)
-        msg = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=1024,
-            messages=[{
-                "role": "user",
-                "content": _quiz_prompt(milestone.title or "Untitled", milestone.description or ""),
-            }],
-        )
-        raw_text = msg.content[0].text.strip() if msg.content else ""
-        # Strip code fences if Claude rebels
-        if raw_text.startswith("```"):
-            raw_text = raw_text.strip("`")
-            if raw_text.startswith("json"):
-                raw_text = raw_text[4:]
-            raw_text = raw_text.strip()
-        parsed = json.loads(raw_text)
+        # Top-level JSON ARRAY, so no json_object mode.
+        parsed = json.loads(llm.chat_json(
+            None,
+            _quiz_prompt(milestone.title or "Untitled", milestone.description or ""),
+            json_object=False,
+            light=True,
+        ))
     except Exception as exc:
-        logger.warning("[AP8] Claude quiz call failed: %s", exc)
+        logger.warning("[AP8] quiz model call failed: %s", exc)
         return None
 
     return validate_quiz(parsed)

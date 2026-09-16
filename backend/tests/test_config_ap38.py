@@ -98,7 +98,7 @@ def test_startup_warning_names_every_unset_required_variable(caplog, monkeypatch
     SECRET_KEY and the warning must name it."""
     monkeypatch.delenv("SECRET_KEY", raising=False)
     monkeypatch.setenv("CORS_ORIGINS", "https://example.com")
-    monkeypatch.setenv("OPENAI_API_KEY", "test-only-not-a-real-key")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-only-not-a-real-key")
     with caplog.at_level(logging.WARNING, logger="config"):
         config.warn_unset_required()
     warnings = [r.getMessage() for r in caplog.records if r.name == "config"]
@@ -229,7 +229,7 @@ def test_the_drift_test_actually_sees_the_reads():
     """Positive control: the enumerator must find the variables we KNOW are read, or a
     green on the test above would prove nothing (it would pass on an empty set)."""
     read = _backend_env_reads()
-    for expected in ("SECRET_KEY", "OPENAI_API_KEY", "CORS_ORIGINS", "APP_COOKIE_SECURE"):
+    for expected in ("SECRET_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY", "CORS_ORIGINS", "APP_COOKIE_SECURE"):
         assert expected in read, f"the enumerator failed to find {expected}"
     assert "VITE_API_BASE" in _frontend_vite_reads()
 
@@ -281,10 +281,10 @@ def test_main_starts_in_production_with_cors_origins_set(monkeypatch):
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.setenv("CORS_ORIGINS", "https://example.com")
     # Anything else main.py requires in production must also be present, or this
-    # would fail for the WRONG reason (SECRET_KEY, OPENAI_API_KEY — see
+    # would fail for the WRONG reason (SECRET_KEY, GEMINI_API_KEY — see
     # config.REQUIRED_IN_PRODUCTION) and look like a false confirmation.
     monkeypatch.setenv("SECRET_KEY", "test-only-not-a-real-secret")
-    monkeypatch.setenv("OPENAI_API_KEY", "test-only-not-a-real-key")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-only-not-a-real-key")
     # Same review fix as above: restore the ORIGINAL `main` module at teardown instead of
     # leaving the fresh copy (with its own rate-limit dict) in sys.modules.
     monkeypatch.delitem(sys.modules, "main", raising=False)

@@ -92,12 +92,14 @@ class TestMain:
     def test_refuses_to_run_without_an_api_key(self, monkeypatch, capsys, seeded):
         # Without the key, enrichment silently no-ops — a run would report
         # success having done nothing. It must fail loudly instead.
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         assert bf.main([]) == 2
-        assert "ANTHROPIC_API_KEY" in capsys.readouterr().err
+        assert "GEMINI_API_KEY" in capsys.readouterr().err
 
     def test_dry_run_needs_no_key_and_writes_nothing(self, monkeypatch, capsys, seeded):
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         calls = []
         monkeypatch.setattr(bf, "enrich_milestone_resources",
                             lambda *a, **kw: calls.append(a))
@@ -106,7 +108,7 @@ class TestMain:
         assert "DRY RUN" in capsys.readouterr().out
 
     def test_enriches_every_milestone_of_each_selected_path(self, monkeypatch, seeded):
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        monkeypatch.setenv("GEMINI_API_KEY", "test-key")
         calls = []
         monkeypatch.setattr(bf, "enrich_milestone_resources",
                             lambda *a, **kw: calls.append(a))
@@ -117,7 +119,7 @@ class TestMain:
         assert {c[4] for c in calls} == {"nl", "fr"}
 
     def test_one_failing_milestone_does_not_abort_the_run(self, monkeypatch, seeded):
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        monkeypatch.setenv("GEMINI_API_KEY", "test-key")
         calls = []
 
         def flaky(mid, *a):

@@ -13,6 +13,7 @@ import json
 
 from database import get_db
 from models import LearningPath, Milestone, MilestoneNote, MilestoneTask, PathRevision, User
+import llm
 from ai_service import generate_learning_path, stream_learning_path, enrich_milestone_resources, adjust_difficulty
 from auth import (
     SESSION_COOKIE,
@@ -446,7 +447,7 @@ async def create_learning_path_endpoint(
     except Exception as e:
         db.rollback()
         logger.error(f"Error creating learning path: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=llm.user_message(e))  # AP46: never raw SDK text
 
 
 @router.post("/generate/stream")
@@ -556,7 +557,7 @@ async def generate_stream(
         except Exception as e:
             db.rollback()
             logger.error(f"Error in stream endpoint: {e}")
-            yield f"event: error\ndata: {json.dumps({'detail': str(e)})}\n\n"
+            yield f"event: error\ndata: {json.dumps({'detail': llm.user_message(e)})}\n\n"
 
     return StreamingResponse(
         event_generator(),
@@ -1167,7 +1168,7 @@ async def milestone_feedback(
     except Exception as e:
         db.rollback()
         logger.error(f"adjust_difficulty failed for path {path.id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to adjust difficulty: {e}")
+        raise HTTPException(status_code=500, detail=llm.user_message(e, "adjust the difficulty"))
 
     # AP24 — snapshot the pre-change milestone set BEFORE the destructive
     # delete so the user can revert. trigger derived from the feedback.

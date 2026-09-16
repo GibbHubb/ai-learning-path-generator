@@ -117,7 +117,7 @@ The fastest way to run both services with a single command:
 ```bash
 # 1. Copy the example env file and fill in your OpenAI key
 cp .env.example .env
-# Edit .env: set OPENAI_API_KEY=sk-...
+# Edit .env: set GEMINI_API_KEY=... (free key from aistudio.google.com)
 
 # 2. Start everything
 docker compose up --build
@@ -162,7 +162,7 @@ pip install -r ../requirements.txt
 3. **Configure environment variables**
 ```bash
 # Create .env file in project root
-echo "OPENAI_API_KEY=your_api_key_here" > ../.env
+echo "GEMINI_API_KEY=your_api_key_here" > ../.env
 ```
 
 4. **Set up the frontend**

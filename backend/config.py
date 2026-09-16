@@ -99,7 +99,11 @@ def bool_flag(name: str, default: bool) -> bool:
 # The single source of truth for "what does this backend read from the environment".
 # The drift test in tests/test_config_ap38.py derives from the code, not from here, so
 # this list is documentation; the ENFORCEMENT is the test.
-REQUIRED_IN_PRODUCTION = ["SECRET_KEY", "CORS_ORIGINS", "OPENAI_API_KEY"]
+# AP46: the AI key is GEMINI_API_KEY (free tier); OPENAI_API_KEY is an optional fallback.
+# Deliberately NOT require()d at boot: a missing AI key should disable the AI features
+# (they answer "not configured"), not take the whole site down with them. This list feeds
+# the one startup warning only.
+REQUIRED_IN_PRODUCTION = ["SECRET_KEY", "CORS_ORIGINS", "GEMINI_API_KEY"]
 
 
 def warn_unset_required() -> None:

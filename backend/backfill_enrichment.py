@@ -28,9 +28,9 @@ Usage
 
 Notes
 -----
-* Requires ANTHROPIC_API_KEY unless --dry-run; enrichment silently no-ops
-  without it, which would look like a successful run that did nothing.
-* Each milestone is one Haiku call. --limit and --created-before exist so a
+* Requires GEMINI_API_KEY (or OPENAI_API_KEY) unless --dry-run; enrichment
+  silently no-ops without it, which would look like a successful run that did nothing.
+* Each milestone is one model call (free-tier Gemini has per-minute limits). --limit and --created-before exist so a
   large backfill can be run in cost-controlled batches.
 * Safe to re-run: enrichment overwrites a milestone's resources column
   wholesale, so a partial run just picks up where it left off.
@@ -89,8 +89,8 @@ def main(argv=None):
     ap.add_argument("--limit", type=int, help="cap the number of paths processed")
     args = ap.parse_args(argv)
 
-    if not args.dry_run and not os.getenv("ANTHROPIC_API_KEY"):
-        print("ERROR: ANTHROPIC_API_KEY is not set. Enrichment would silently "
+    if not args.dry_run and not (os.getenv("GEMINI_API_KEY") or os.getenv("OPENAI_API_KEY")):
+        print("ERROR: GEMINI_API_KEY is not set. Enrichment would silently "
               "no-op and report success. Set the key, or use --dry-run.",
               file=sys.stderr)
         return 2
