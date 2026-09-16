@@ -11,7 +11,7 @@
     },
     {
       "src": "backend/index.py",
-      "use": "@vercel/python",
+      "use": "@vercel/python@6.58.0",
       "config": {
         "includeFiles": "**"
       }
