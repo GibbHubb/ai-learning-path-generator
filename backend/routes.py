@@ -66,7 +66,9 @@ class MilestoneTaskOut(BaseModel):
 class MilestoneResponse(BaseModel):
     id: int
     title: str
-    description: str
+    # AP45 — NULL in the database; a non-optional str here turns that row into a 500 on
+    # read, not a validation error on write.
+    description: Optional[str] = None
     order: int
     estimated_hours: float
     resources: List[str]
@@ -80,7 +82,7 @@ class MilestoneResponse(BaseModel):
 class LearningPathResponse(BaseModel):
     id: int
     title: str
-    description: str
+    description: Optional[str] = None  # AP45 — see MilestoneResponse
     experience_level: str
     time_commitment: str
     is_public: bool

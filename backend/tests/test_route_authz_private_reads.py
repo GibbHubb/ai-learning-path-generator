@@ -28,7 +28,7 @@ BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BACKEND_DIR)
 
 from database import SessionLocal  # noqa: E402
-from models import LearningPath, MilestoneNote  # noqa: E402
+from models import LearningPath, Milestone, MilestoneNote  # noqa: E402
 from test_route_authz_ap32 import (  # noqa: E402,F401 — fixtures are collected by name
     _make_path, _sign_in, _user_id, captured_tokens, client,
 )
@@ -92,6 +92,35 @@ def test_anyone_can_read_a_public_path(client):
 
 def test_missing_path_is_404(client):
     assert client.get("/api/paths/999999").status_code == 404
+
+
+def test_a_public_path_with_no_description_is_readable_not_a_500(client):
+    """AP45 — found live: `/explore` advertises a public path whose `description` is NULL,
+    and `GET /paths/{id}` answered **500** for it because the response model declared
+    `description: str`. FastAPI validates the RESPONSE, so a NULL row became an error on
+    read. Pre-existing (the model predates the AP32 read gate), fixed by making the field
+    optional."""
+    db = SessionLocal()
+    try:
+        p = LearningPath(title="No description", description=None,
+                         experience_level="beginner", time_commitment="2h",
+                         is_public=True, total_xp=0, streak_days=0)
+        db.add(p)
+        db.commit()
+        db.refresh(p)
+        pid = p.id
+        db.add(Milestone(learning_path_id=pid, title="m1", description=None, order=1,
+                         estimated_hours=1.0, resources="[]", completed=False))
+        db.commit()
+    finally:
+        db.close()
+
+    res = client.get(f"/api/paths/{pid}")
+    assert res.status_code == 200, res.text[:200]
+    body = res.json()
+    assert body["title"] == "No description"
+    assert body["description"] is None
+    assert body["milestones"][0]["description"] is None
 
 
 # ── GET /paths/{path_id}/calendar.ics ───────────────────────────────────────────
