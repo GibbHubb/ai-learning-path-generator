@@ -36,9 +36,14 @@ def client():
 def _make_path(hours="10 hours/week", n=3):
     db = SessionLocal()
     try:
+        # AP32 close-out: GET /paths/{id}/calendar.ics used to be open to anyone, so
+        # this ownerless PRIVATE path was readable. It is now public-or-owner, which
+        # these CONTENT tests are not about — so the fixture path is public. The access
+        # rule itself (anon/stranger 404, owner and cookie-owner 200) is pinned in
+        # tests/test_route_authz_private_reads.py.
         p = LearningPath(
             title="Test Path", description="d", experience_level="beginner",
-            time_commitment=hours, language="en",
+            time_commitment=hours, language="en", is_public=True,
         )
         db.add(p)
         db.flush()

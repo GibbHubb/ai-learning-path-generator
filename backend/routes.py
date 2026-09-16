@@ -152,6 +152,49 @@ class UserResponse(BaseModel):
 # AP9 — Auth routes
 # ---------------------------------------------------------------------------
 
+# AP32 criterion 6 — every @router.patch/post/delete handler must either call
+# one of require_user / _load_owned_* / _authorize_path, or be listed here
+# with a reason. The guard test in tests/test_route_authz_ap32.py enumerates
+# every such handler and fails the build if a new one appears unguarded and
+# unlisted — this set is what makes "on purpose" auditable instead of assumed.
+_PUBLIC_MUTATIONS = {
+    ("POST", "/auth/request-link"),  # bootstraps auth itself — nothing yet to own
+    ("POST", "/auth/verify"),        # exchanges a one-time token for a session; same reason
+    ("POST", "/auth/logout"),        # only ever acts on the caller's own session cookie
+    ("POST", "/generate"),           # AP9: anonymous path generation is a kept feature
+    ("POST", "/generate/stream"),    # SSE variant of /generate, same reasoning
+    # Not "public" in the open sense — it has ITS OWN guard (a CRON_SECRET shared
+    # secret, see :1517), just not one of the three ownership helpers above: a job
+    # trigger has no owning user to check against.
+    ("POST", "/jobs/run-reminders"),
+}
+
+# AP32 close-out — routes that take someone's id but do NOT call an ownership helper,
+# because they are scoped a different, deliberate way. The guard test in
+# tests/test_route_authz_ap32.py requires every id-taking mutation to either call
+# _load_owned_* / _authorize_path on its own id or be listed here WITH a reason, so a
+# new id route that only checks sign-in fails the build instead of shipping.
+_ID_ROUTES_SCOPED_INLINE = {
+    # Forking is meant for OTHER users' paths: the handler 404s a missing path and 403s
+    # a private one (`if not src.is_public`), and only ever writes a NEW row owned by the
+    # caller. The source path is never modified.
+    ("POST", "/paths/{path_id}/fork"),
+    # Deletes only the CALLER's note on that milestone: the query filters on
+    # `MilestoneNote.user_id == current.id`, so another user's note cannot be matched.
+    ("DELETE", "/milestones/{milestone_id}/note"),
+}
+
+# AP32 close-out (review round 3) — id-taking GET routes that are deliberately readable
+# without ownership. The guard enumerates GETs too now, because the holes this round
+# fixed (GET /paths/{id}, its calendar) were exactly this shape and no test saw them.
+# Every entry gates on a flag inside its own handler; the test below asserts that.
+_PUBLIC_READS = {
+    ("GET", "/paths/{path_id}/public"),        # 404s unless path.is_public
+    ("GET", "/paths/{path_id}/notes/public"),  # 404s unless path.is_public
+    ("GET", "/u/{user_id}/stats"),             # gated on the profile's public flag
+    ("GET", "/milestones/{milestone_id}/note"),  # the CALLER's own note (user_id == current.id)
+}
+
 
 @router.post("/auth/request-link")
 async def auth_request_link(payload: MagicLinkRequest, db: Session = Depends(get_db)):
@@ -626,11 +669,12 @@ async def fork_path(
 
 
 @router.get("/paths/{path_id}", response_model=LearningPathResponse)
-async def get_path(path_id: int, db: Session = Depends(get_db)):
-    """Get a specific learning path"""
+async def get_path(path_id: int, request: Request, db: Session = Depends(get_db),
+                   current: Optional[User] = Depends(get_current_user_optional)):
+    """Get a specific learning path — public, or the caller's own (AP32 close-out:
+    this had no check, so any private path was readable by id)."""
     path = db.query(LearningPath).filter(LearningPath.id == path_id).first()
-    if not path:
-        raise HTTPException(status_code=404, detail="Learning path not found")
+    path = _authorize_path_read(path, current, request)
     return _build_path_response(path)
 
 
@@ -643,6 +687,8 @@ async def export_path_calendar(
     study_block_hour: Optional[int] = Query(None, ge=0, le=23),
     study_block_minute: int = Query(0, ge=0, le=59),
     db: Session = Depends(get_db),
+    request: Request = None,
+    current: Optional[User] = Depends(get_current_user_optional),
 ):
     """Build an .ics download of the path's milestones scheduled from
     today across `estimate_schedule`'s span. All-day VEVENTs, one per
@@ -664,8 +710,8 @@ async def export_path_calendar(
     """
     from icalendar import Calendar, Event, Alarm  # local import — keeps cold-start light
     path = db.query(LearningPath).filter(LearningPath.id == path_id).first()
-    if not path:
-        raise HTTPException(status_code=404, detail="Learning path not found")
+    # AP32 close-out: same read gate as GET /paths/{id} (it "mirrored its open access").
+    path = _authorize_path_read(path, current, request)
 
     lead = reminder_days if reminder_days and reminder_days > 0 else 1
     finish, schedule = estimate_schedule(path.milestones, path.time_commitment)
@@ -1195,6 +1241,16 @@ def _authorize_path(path: Optional[LearningPath], current: Optional[User],
     raise HTTPException(status_code=404, detail=detail)
 
 
+def _authorize_path_read(path: Optional[LearningPath], current: Optional[User],
+                         request: Request) -> LearningPath:
+    """AP32 close-out — READ access to a path by id: anyone for a public path, only its
+    owner (signed-in user or anonymous `ap_anon_id` cookie) for a private one, 404
+    otherwise. GET /paths/{id} and its calendar export had no check at all."""
+    if path is not None and path.is_public:
+        return path
+    return _authorize_path(path, current, request)
+
+
 @router.get("/paths/{path_id}/revisions", response_model=List[RevisionOut])
 async def list_path_revisions(
     path_id: int,
@@ -1362,8 +1418,7 @@ async def upsert_my_note(
     Empty / whitespace-only `content` deletes the note (saves nothing).
     The keyword-based `difficulty_flag` is recomputed on every save.
     """
-    if not db.query(Milestone).filter(Milestone.id == milestone_id).first():
-        raise HTTPException(status_code=404, detail="Milestone not found.")
+    _load_owned_milestone(milestone_id, current, db)
 
     body = (payload.content or "").strip()
     note = (
@@ -1555,6 +1610,10 @@ async def get_milestone_quiz(
     current: User = Depends(require_user),
 ):
     """Cached quiz; generates via Claude on miss. Generation rate-limited 1/hr."""
+    # AP32 close-out (/code-review): sign-in is not ownership. Without this any signed-in
+    # user read another user's quiz — `correct_index` included — and could trigger a
+    # Claude generation on it. 404, not 403, like every other ownership check here.
+    _load_owned_milestone(milestone_id, current, db)
     quiz, err = get_or_generate_quiz(milestone_id, db, force=False)
     if err:
         status, msg = _QUIZ_ERROR_TO_HTTP.get(err, (500, err))
@@ -1569,6 +1628,8 @@ async def regenerate_milestone_quiz(
     current: User = Depends(require_user),
 ):
     """Force a fresh Claude generation. Gated to once per day per milestone."""
+    # AP32 close-out: a paid generation must be on the caller's OWN milestone.
+    _load_owned_milestone(milestone_id, current, db)
     quiz, err = get_or_generate_quiz(milestone_id, db, force=True)
     if err:
         status, msg = _QUIZ_ERROR_TO_HTTP.get(err, (500, err))
@@ -1591,6 +1652,9 @@ async def submit_quiz_attempt(
     milestone complete and fires the AP4 XP/streak update — same logic as
     the direct PATCH /milestones/{id} path so quiz-gated and direct flows
     agree on totals."""
+    # AP32 close-out: without this, passing the quiz on ANOTHER user's milestone
+    # completed it, ticked its tasks and awarded XP (the answers ship to the browser).
+    _load_owned_milestone(milestone_id, current, db)
     quiz = (
         db.query(MilestoneQuiz)
         .filter(MilestoneQuiz.milestone_id == milestone_id)

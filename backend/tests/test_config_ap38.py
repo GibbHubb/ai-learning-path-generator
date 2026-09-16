@@ -5,6 +5,7 @@ The drift test is the one that makes this stick: a corrected .env.example decays
 test that derives the variable list from the source cannot. This is the
 "enforce it, don't remember it" rule applied to configuration.
 """
+import logging
 import os
 import re
 import sys
@@ -88,6 +89,33 @@ def test_the_literal_dev_secret_is_gone_from_backend():
                 if "dev-secret-change-me" in line and not line.lstrip().startswith("#"):
                     hits.append(f"{path}: {line.strip()}")
     assert hits == [], "the public fallback constant is still live:\n" + "\n".join(hits)
+
+
+# ── (a2) startup logs ONE warning naming every unset required variable ─────────
+def test_startup_warning_names_every_unset_required_variable(caplog, monkeypatch):
+    """config.warn_unset_required() is what main.py calls at import time
+    (main.py:91) — the single up-front line a deployer actually reads. Remove
+    SECRET_KEY and the warning must name it."""
+    monkeypatch.delenv("SECRET_KEY", raising=False)
+    monkeypatch.setenv("CORS_ORIGINS", "https://example.com")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-only-not-a-real-key")
+    with caplog.at_level(logging.WARNING, logger="config"):
+        config.warn_unset_required()
+    warnings = [r.getMessage() for r in caplog.records if r.name == "config"]
+    assert len(warnings) == 1, warnings  # a SINGLE warning, not one per variable
+    assert "SECRET_KEY" in warnings[0], warnings[0]
+
+
+def test_startup_warning_says_nothing_when_everything_is_set(caplog, monkeypatch):
+    """Positive control for the test above: with every REQUIRED_IN_PRODUCTION
+    variable set, warn_unset_required() must log nothing — otherwise the prior
+    test's green could just mean it warns unconditionally, proving nothing about
+    SECRET_KEY specifically."""
+    for name in config.REQUIRED_IN_PRODUCTION:
+        monkeypatch.setenv(name, "x")
+    with caplog.at_level(logging.WARNING, logger="config"):
+        config.warn_unset_required()
+    assert [r.getMessage() for r in caplog.records if r.name == "config"] == []
 
 
 # ── (b) the session cookie is Secure by default ────────────────────────────────
@@ -211,3 +239,55 @@ def test_the_dead_vite_url_name_is_gone():
     uses. The dead name must not be back."""
     assert "VITE_API_URL" not in _env_example_names()
     assert "VITE_API_BASE" in _env_example_names()
+
+
+# ── (e) CORS_ORIGINS required in production — criterion 6 ──────────────────────
+def test_cors_dev_default_is_localhost_and_therefore_dev_only():
+    """The permissive localhost fallback (main.py:94) is passed as an explicit
+    dev_default=, never returned once ENVIRONMENT=production — proven by the
+    refuses-to-start test below, which is the half that actually matters."""
+    val = config.require(
+        "CORS_ORIGINS", dev_default="http://localhost:5173,http://localhost:3000")
+    assert "localhost" in val
+
+
+def test_main_refuses_to_start_in_production_without_cors_origins(monkeypatch):
+    """main.py:92 calls config.require("CORS_ORIGINS", ...) at IMPORT time, before
+    app.add_middleware — not lazily on first request — so with allow_credentials=
+    True (main.py:99) a misconfigured production deploy must fail to LOAD, not
+    silently allow the localhost dev origins against a live session cookie.
+
+    Forces a real re-import of main (not just calling a function) so this proves
+    the actual module-load path, matching how a fresh Vercel cold start behaves."""
+    import importlib
+
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.delenv("CORS_ORIGINS", raising=False)
+    # Review fix: popping `main` without restoring it left later tests (and conftest's
+    # autouse `import main`) on a FRESH module whose rate-limit dict is not the one the
+    # shared `app` uses — the full-suite-only 429 flake conftest exists to prevent.
+    # monkeypatch.delitem restores the ORIGINAL module object at teardown.
+    monkeypatch.delitem(sys.modules, "main", raising=False)
+    with pytest.raises(config.ConfigError, match="CORS_ORIGINS"):
+        importlib.import_module("main")
+
+
+def test_main_starts_in_production_with_cors_origins_set(monkeypatch):
+    """Positive control for the test above: the SAME reimport path must succeed
+    once CORS_ORIGINS is set, or the previous test would only be proving that
+    main.py is broken in general, not that the guard is what's firing."""
+    import importlib
+
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("CORS_ORIGINS", "https://example.com")
+    # Anything else main.py requires in production must also be present, or this
+    # would fail for the WRONG reason (SECRET_KEY, OPENAI_API_KEY — see
+    # config.REQUIRED_IN_PRODUCTION) and look like a false confirmation.
+    monkeypatch.setenv("SECRET_KEY", "test-only-not-a-real-secret")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-only-not-a-real-key")
+    # Same review fix as above: restore the ORIGINAL `main` module at teardown instead of
+    # leaving the fresh copy (with its own rate-limit dict) in sys.modules.
+    monkeypatch.delitem(sys.modules, "main", raising=False)
+    fresh_main = importlib.import_module("main")
+    assert fresh_main.app is not None
+    monkeypatch.delitem(sys.modules, "main", raising=False)

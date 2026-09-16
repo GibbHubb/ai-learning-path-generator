@@ -179,27 +179,48 @@ def test_delete_note_clears(client, captured_tokens):
 
 
 def test_public_notes_endpoint_includes_only_public(client, captured_tokens):
-    # Alice creates a note (default public)
+    # Alice creates a note (default public) on her own public path
     _sign_in(client, captured_tokens, "alice@finly.dev")
     alice_id = SessionLocal().query(User).filter(User.email == "alice@finly.dev").first().id
     path_id, m_id = _seed_path(user_id=alice_id, is_public=True)
-    client.put(f"/api/milestones/{m_id}/note", json={"content": "Loved this", "is_private": False})
+    res = client.put(f"/api/milestones/{m_id}/note",
+                     json={"content": "Loved this", "is_private": False})
+    assert res.status_code == 200, res.text
 
-    # Bob adds a private note on the same milestone
-    _sign_in(client, captured_tokens, "bob@finly.dev")
-    client.put(f"/api/milestones/{m_id}/note", json={"content": "secret thoughts", "is_private": True})
-
-    # Anonymous fetch
+    # positive control: the endpoint DOES return a public note, with the email masked
     anon = TestClient(app)  # fresh cookie jar
     res = anon.get(f"/api/paths/{path_id}/notes/public")
     assert res.status_code == 200
-    body = res.json()
-    notes = body[str(m_id)]
-    contents = {n["content"] for n in notes}
-    assert "Loved this" in contents
-    assert "secret thoughts" not in contents
-    # Email is masked
+    notes = res.json()[str(m_id)]
+    assert {n["content"] for n in notes} == {"Loved this"}
     assert all("@" in n["author"] and "*" in n["author"] for n in notes)
+
+    # 2026-09-16 (AP32 close-out): this used to have BOB write the private note on Alice's
+    # milestone. Notes are owner-only now, so that write 404s — and the old assertion
+    # ("secret thoughts" not in contents) then passed on a note that never existed. The
+    # is_private filter was guarded by a no-op. Alice flips her OWN note private instead,
+    # so deleting that filter fails this test again.
+    res = client.put(f"/api/milestones/{m_id}/note",
+                     json={"content": "secret thoughts", "is_private": True})
+    assert res.status_code == 200, res.text
+    body = TestClient(app).get(f"/api/paths/{path_id}/notes/public").json()
+    contents = {n["content"] for n in body.get(str(m_id), [])}
+    assert "secret thoughts" not in contents
+    assert contents == set(), "a private note must not reach the public endpoint"
+
+
+def test_a_stranger_cannot_note_someone_elses_milestone(client, captured_tokens):
+    """Notes are owner-only (AP32 close-out review round 3). Without this, a stranger's
+    note — `is_private` defaults to False — published onto the owner's share page."""
+    _sign_in(client, captured_tokens, "alice@finly.dev")
+    alice_id = SessionLocal().query(User).filter(User.email == "alice@finly.dev").first().id
+    _, m_id = _seed_path(user_id=alice_id, is_public=True)
+
+    _sign_in(client, captured_tokens, "bob@finly.dev")
+    res = client.put(f"/api/milestones/{m_id}/note",
+                     json={"content": "graffiti", "is_private": False})
+    assert res.status_code == 404, res.text
+    assert SessionLocal().query(MilestoneNote).count() == 0
 
 
 def test_public_notes_404_when_path_not_public(client, captured_tokens):
