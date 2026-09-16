@@ -83,8 +83,12 @@ class LearningPathResponse(BaseModel):
     id: int
     title: str
     description: Optional[str] = None  # AP45 — see MilestoneResponse
-    experience_level: str
-    time_commitment: str
+    # AP45 — measured on the live row that was 500ing (path 1): description,
+    # experience_level and time_commitment are ALL NULL there. FastAPI validates the
+    # RESPONSE, so each non-optional field turns such a row into a 500 on read. The
+    # description-only fix was necessary but not sufficient — the live probe said so.
+    experience_level: Optional[str] = None
+    time_commitment: Optional[str] = None
     is_public: bool
     total_xp: int
     streak_days: int

@@ -100,9 +100,37 @@ def test_a_public_path_with_no_description_is_readable_not_a_500(client):
     `description: str`. FastAPI validates the RESPONSE, so a NULL row became an error on
     read. Pre-existing (the model predates the AP32 read gate), fixed by making the field
     optional."""
+    # Shaped from the LIVE row that was 500ing (learning_paths id=1, read-only 2026-09-16):
+    # public, NO milestones, and description / experience_level / time_commitment all NULL.
+    # The first version of this test set the latter two and added a milestone — so it passed
+    # while production still returned 500, which is why the fix looked complete and was not.
     db = SessionLocal()
     try:
-        p = LearningPath(title="No description", description=None,
+        p = LearningPath(title="Rust for backend engineers", description=None,
+                         experience_level=None, time_commitment=None,
+                         is_public=True, total_xp=0, streak_days=0)
+        db.add(p)
+        db.commit()
+        db.refresh(p)
+        pid = p.id
+    finally:
+        db.close()
+
+    res = client.get(f"/api/paths/{pid}")
+    assert res.status_code == 200, res.text[:300]
+    body = res.json()
+    assert body["title"] == "Rust for backend engineers"
+    assert body["description"] is None
+    assert body["experience_level"] is None
+    assert body["time_commitment"] is None
+    assert body["milestones"] == []
+
+
+def test_a_path_with_a_null_milestone_description_is_readable(client):
+    """The milestone half of the same defect: MilestoneResponse.description was required."""
+    db = SessionLocal()
+    try:
+        p = LearningPath(title="Has a bare milestone", description="d",
                          experience_level="beginner", time_commitment="2h",
                          is_public=True, total_xp=0, streak_days=0)
         db.add(p)
@@ -116,11 +144,8 @@ def test_a_public_path_with_no_description_is_readable_not_a_500(client):
         db.close()
 
     res = client.get(f"/api/paths/{pid}")
-    assert res.status_code == 200, res.text[:200]
-    body = res.json()
-    assert body["title"] == "No description"
-    assert body["description"] is None
-    assert body["milestones"][0]["description"] is None
+    assert res.status_code == 200, res.text[:300]
+    assert res.json()["milestones"][0]["description"] is None
 
 
 # ── GET /paths/{path_id}/calendar.ics ───────────────────────────────────────────
