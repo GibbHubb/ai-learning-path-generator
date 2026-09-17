@@ -1,0 +1,4 @@
+# AP44 — local development and tests. Not installed into the Vercel function.
+-r requirements.txt
+uvicorn[standard]==0.32.0
+pytest==8.3.3

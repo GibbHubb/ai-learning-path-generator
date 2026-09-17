@@ -156,7 +156,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 # AP31 — the dependency list lives at the repo ROOT: Vercel's Python builder
 # reads it from there and cannot follow an `-r ../file` include, so there is
 # deliberately only one copy.
-pip install -r ../requirements.txt
+pip install -r ../requirements-dev.txt
 ```
 
 3. **Configure environment variables**

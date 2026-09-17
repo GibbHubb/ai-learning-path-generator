@@ -12,9 +12,10 @@
     },
     {
       "src": "backend/index.py",
-      "use": "@vercel/python@6.58.0",
+      "use": "@vercel/python",
       "config": {
-        "includeFiles": "**"
+        "includeFiles": "{*.py,assets/**}",
+        "excludeFiles": "{tests/**,test_*.py,*.db,test_output.txt,.deepeval/**,.pytest_cache/**,__pycache__/**}"
       }
     }
   ],
