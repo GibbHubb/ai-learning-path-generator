@@ -189,6 +189,22 @@ _ID_ROUTES_SCOPED_INLINE = {
     # Deletes only the CALLER's note on that milestone: the query filters on
     # `MilestoneNote.user_id == current.id`, so another user's note cannot be matched.
     ("DELETE", "/milestones/{milestone_id}/note"),
+    # AP43 — the id arrives as a QUERY param (`?token=`), and this GET MUTATES
+    # (`reminder_opt_in = False`). Auth-free by design: the link is clicked from an email with
+    # no session, and `verify_unsubscribe_token` checks an HMAC-signed token that names the
+    # user, so the token IS the authorisation. An invalid token changes nothing.
+    ("GET", "/unsubscribe"),
+}
+
+# AP43 — id-less GETs used to be skipped on the premise "they list only the caller's own
+# rows". That premise was never checked and is false for /explore. Now every id-less GET must
+# either require sign-in or be listed here with the reason it is safe to call without it.
+_IDLESS_READS = {
+    ("GET", "/auth/me"),   # returns the CALLER's own user, or null when signed out
+    ("GET", "/paths"),     # filtered to the caller: user_id == current.id, else the anon cookie
+    ("GET", "/explore"),   # public by design: filters LearningPath.is_public == True
+    ("GET", "/"),          # main.py: static API banner, no data
+    ("GET", "/health"),    # main.py: liveness + DB ping, no data
 }
 
 # AP32 close-out (review round 3) — id-taking GET routes that are deliberately readable

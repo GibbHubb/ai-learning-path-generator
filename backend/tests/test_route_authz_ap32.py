@@ -399,7 +399,23 @@ def _owns_route_id(fn, params, helpers=_OWNERSHIP_HELPERS):
     return False
 
 
-def _unguarded(src, public, scoped_inline, public_reads=frozenset()):
+def _query_id_params(fn, path_params):
+    """AP43 — handler parameters that carry an id or token WITHOUT being a `{placeholder}`
+    (e.g. `GET /unsubscribe?token=`). The old guard read ids only from the URL template, so
+    such routes looked id-less and were skipped."""
+    args = fn.args.args + fn.args.kwonlyargs
+    defaults = [None] * (len(fn.args.args) - len(fn.args.defaults)) + list(fn.args.defaults) + list(fn.args.kw_defaults)
+    out = set()
+    for a, d in zip(args, defaults):
+        is_dep = isinstance(d, ast.Call) and getattr(d.func, "id", "") == "Depends"
+        if a.arg in path_params or is_dep:
+            continue
+        if a.arg.endswith("_id") or a.arg == "token":
+            out.add(a.arg)
+    return out
+
+
+def _unguarded(src, public, scoped_inline, public_reads=frozenset(), idless_reads=frozenset()):
     out = []
     for method, path, fn in _iter_mutation_handlers(src):
         if (method, path) in public:
@@ -408,16 +424,23 @@ def _unguarded(src, public, scoped_inline, public_reads=frozenset()):
         # ownership for it (round 4).
         if method == "GET" and (method, path) in public_reads:
             continue
-        params = set(re.findall(r"\{(\w+)\}", path))
+        path_params = set(re.findall(r"\{(\w+)\}", path))
+        # AP43 — query ids count only when the URL has no placeholder. Otherwise the route's id
+        # IS its placeholder, and treating any other `*_id` argument as "the" id would let a
+        # handler guard the wrong one (the `wrong_id` control above caught exactly that).
+        params = path_params or _query_id_params(fn, path_params)
         if params:
             # a GET may be satisfied by the read gate (public OR owner); a mutation may not
             helpers = _READ_HELPERS if method == "GET" else _OWNERSHIP_HELPERS
             if (method, path) in scoped_inline or _owns_route_id(fn, params, helpers):
                 continue
             out.append(f"{method} {path}")
-        elif method != "GET" and not any(isinstance(n, ast.Name) and n.id == "require_user"
-                                         for n in ast.walk(fn.args)):
-            out.append(f"{method} {path}")  # an id-less GET lists only the caller's own rows
+        elif not any(isinstance(n, ast.Name) and n.id == "require_user" for n in ast.walk(fn.args)):
+            # AP43 — an id-less GET is no longer assumed to list only the caller's rows: it must
+            # require sign-in or be on routes._IDLESS_READS with a written reason.
+            if method == "GET" and (method, path) in idless_reads:
+                continue
+            out.append(f"{method} {path}")
     return sorted(out)
 
 
@@ -565,7 +588,8 @@ def test_every_mutation_route_is_guarded_or_allowlisted():
     for src in _all_sources():
         unguarded += _unguarded(src, routes_module._PUBLIC_MUTATIONS,
                                 getattr(routes_module, "_ID_ROUTES_SCOPED_INLINE", set()),
-                                getattr(routes_module, "_PUBLIC_READS", set()))
+                                getattr(routes_module, "_PUBLIC_READS", set()),
+                                getattr(routes_module, "_IDLESS_READS", set()))
     unguarded = sorted(unguarded)
     assert unguarded == [], (
         "route(s) with no ownership guard on their own id and not allowlisted: "
@@ -797,3 +821,37 @@ def test_owner_can_still_read_their_own_quiz(client, captured_tokens):
         res = client.get(f"/api/milestones/{ms}/quiz")
     assert res.status_code == 200, res.text
     assert len(res.json()["questions"]) == 2
+
+
+# ── AP43 — routes the URL-shape classifier could not see ───────────────────────────────
+_AP43_CONTROL_SRC = '''
+@router.get("/things/unsub")
+async def q(token: str, db: Session = Depends(get_db)):
+    return 1
+
+@router.get("/things/everything")
+async def e(db: Session = Depends(get_db)):
+    return 1
+
+@router.get("/things/mine")
+async def m(current=Depends(require_user)):
+    return 1
+'''
+
+
+def test_ap43_query_id_and_idless_get_routes_are_flagged_unless_allowlisted():
+    flagged = _unguarded(_AP43_CONTROL_SRC, set(), set(), set(), set())
+    assert flagged == ["GET /things/everything", "GET /things/unsub"]
+    # control: the signed-in GET is not flagged, and allowlisting clears the other two
+    assert _unguarded(_AP43_CONTROL_SRC, set(), {("GET", "/things/unsub")}, set(),
+                      {("GET", "/things/everything")}) == []
+
+
+def test_ap43_every_idless_read_allowlist_entry_is_a_real_route():
+    """A stale entry would silently excuse a future route that reuses the path."""
+    found = set()
+    for src in _all_sources():
+        found |= {(m, p) for m, p, _ in _iter_mutation_handlers(src)}
+    stale = sorted(routes_module._IDLESS_READS - found)
+    assert stale == [], f"_IDLESS_READS lists routes that no longer exist: {stale}"
+
