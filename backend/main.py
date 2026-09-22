@@ -193,38 +193,60 @@ async def public_profile_card(user_id: int, db: _Session = _Depends(get_db)):
     )
 
 # Rate Limiting Middleware
-from fastapi import Request, HTTPException
-import time
+#
+# AP35 — durable, per-visitor rate limiting. The count-and-insert lives in
+# rate_limit.py (storage, key derivation, the Postgres locking strategy);
+# this middleware is only the wiring: pick the route+key, run the check off
+# the event loop (the sync DB call would otherwise block every OTHER
+# in-flight request — see rate_limit.check_and_record's docstring for why
+# that would also silently defeat the concurrency guarantee this exists to
+# prove), and translate the result into a response.
+from fastapi import Request, HTTPException  # noqa: F401 — HTTPException kept for callers importing it from here
+from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
+from database import SessionLocal
+import rate_limit
 
-RATE_LIMIT = 5  # requests per minute
-RATE_LIMIT_WINDOW = 60  # seconds
-request_counts = {}
+
+def _check_and_commit(key: str, route: str) -> tuple[bool, int, int]:
+    """Runs on a worker thread (see rate_limit_middleware). Owns its own
+    session — the request's `get_db()` session belongs to the route handler,
+    which hasn't run yet when the middleware fires."""
+    db = SessionLocal()
+    try:
+        result = rate_limit.check_and_record(db, key, route)
+        db.commit()
+        return result
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
-    # Only limit generation endpoints (sync and streaming)
-    if request.url.path in ("/api/generate", "/api/generate/stream") and request.method == "POST":
-        client_ip = request.client.host
-        current_time = time.time()
-        
-        # Clean up old entries
-        if client_ip in request_counts:
-            requests = [t for t in request_counts[client_ip] if current_time - t < RATE_LIMIT_WINDOW]
-            request_counts[client_ip] = requests
-        else:
-            request_counts[client_ip] = []
-            
-        if len(request_counts[client_ip]) >= RATE_LIMIT:
-            # Return JSON response for 429
-            from fastapi.responses import JSONResponse
-            return JSONResponse(
-                status_code=429,
-                content={"detail": "Too many requests. Please try again later."}
-            )
-            
-        request_counts[client_ip].append(current_time)
-        
+    if not rate_limit.is_limited_route(request.method, request.url.path):
+        return await call_next(request)
+
+    key = rate_limit.derive_key(request)
+    route = rate_limit.route_label_for(request.url.path)
+    allowed, remaining, retry_after = await run_in_threadpool(_check_and_commit, key, route)
+
+    if not allowed:
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Too many requests. Please try again later."},
+            headers={
+                "Retry-After": str(retry_after),
+                "X-RateLimit-Limit": str(rate_limit.RATE_LIMIT),
+                "X-RateLimit-Remaining": "0",
+            },
+        )
+
     response = await call_next(request)
+    response.headers["X-RateLimit-Limit"] = str(rate_limit.RATE_LIMIT)
+    response.headers["X-RateLimit-Remaining"] = str(remaining)
     return response
 
 @app.get("/")

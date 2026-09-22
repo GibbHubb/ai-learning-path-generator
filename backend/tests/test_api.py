@@ -7,7 +7,7 @@ import os
 # Add parent directory to path so we can import main
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from main import app, request_counts
+from main import app
 
 client = TestClient(app)
 
@@ -79,9 +79,13 @@ def test_get_paths():
     assert isinstance(response.json(), list)
 
 def test_rate_limiting():
-    # Reset counts to ensure test isolation
-    request_counts.clear()
-    
+    """AP35 — storage moved from the in-process `request_counts` dict to the
+    `rate_limit_hits` table (autouse `_clean_schema` in conftest.py resets it
+    per test, so no manual clear is needed here any more). Under TestClient
+    `request.client.host` is always the literal "testclient" and
+    TRUSTED_PROXY_HEADER is unset, so all 6 requests key on the same visitor —
+    same sequential-exhaustion shape as before the fix.
+    """
     # Mock generation to avoid hitting API/Cache logic
     with patch("routes.generate_learning_path") as mock_generate:
         mock_generate.return_value = {
@@ -89,7 +93,7 @@ def test_rate_limiting():
             "path_description": "Desc",
             "milestones": []
         }
-        
+
         # Make 6 requests (limit is 5)
         for i in range(6):
             response = client.post("/api/generate", json={
@@ -97,9 +101,12 @@ def test_rate_limiting():
                 "experience_level": "beginner",
                 "time_commitment": "5-10 hours/week"
             })
-            
+
             if i < 5:
                 assert response.status_code == 200
             else:
                 assert response.status_code == 429
                 assert response.json()["detail"] == "Too many requests. Please try again later."
+                assert 1 <= int(response.headers["Retry-After"]) <= 60
+                assert response.headers["X-RateLimit-Limit"] == "5"
+                assert response.headers["X-RateLimit-Remaining"] == "0"

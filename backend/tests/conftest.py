@@ -57,26 +57,18 @@ def _clean_schema():
 def _reset_process_state():
     """Clear the in-process buckets that outlive a single test.
 
-    These are module-level dicts in the app, not database rows, so the schema
-    reset above does not touch them:
-
-    * ``main.request_counts`` — the /api/generate rate limiter, keyed by
-      ``request.client.host``. Under TestClient that key is always the literal
-      "testclient", so *every* test module shares one 5-requests-per-60-seconds
-      bucket. ``test_api.py::test_rate_limiting`` deliberately exhausts it to
-      assert the 429, and the whole suite finishes well inside the 60s window —
-      so any later module that POSTs /api/generate inherited the exhausted
-      bucket and got a 429. That is what made
-      ``test_auth.py::test_anonymous_path_claimed_on_verify`` fail in a
-      full-suite run while passing in isolation.
+    * AP35 — the /api/generate rate limiter used to be an in-process dict
+      keyed by ``request.client.host`` (always the literal "testclient" under
+      TestClient, so every test module shared one bucket and had to be reset
+      here). It is now ``rate_limit_hits``, a database table, so the
+      ``_clean_schema`` fixture above (drop + recreate every table before
+      each test) already covers it — nothing to clear here any more.
 
     * ``auth._magic_link_requests`` — the magic-link per-email bucket. Most
       modules already cleared this themselves; doing it here covers the rest.
     """
-    import main as main_module
     import auth as auth_module
 
-    main_module.request_counts.clear()
     auth_module._magic_link_requests.clear()
     yield
 

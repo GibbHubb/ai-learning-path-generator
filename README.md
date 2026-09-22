@@ -399,7 +399,9 @@ Every path and its completion state are stored in SQLite.
 
 ### Technical Improvements
 - **Caching**: Cache AI responses for common goals
-- **Rate Limiting**: Prevent API abuse
+- ~~**Rate Limiting**: Prevent API abuse~~ — done (AP35): a durable, per-visitor,
+  database-backed limiter on every route that calls a model. See `.env.example`
+  (`TRUSTED_PROXY_HEADER`) and `backend/rate_limit.py`.
 - **PostgreSQL**: Production-ready database
 - **Docker**: Containerized deployment
 - **CI/CD**: Automated testing and deployment

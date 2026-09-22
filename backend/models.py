@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Float, Date
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Float, Date, Index
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
@@ -184,3 +184,24 @@ class MilestoneNote(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     milestone = relationship("Milestone", back_populates="notes")
+
+
+# AP35 — one row per accepted hit against a rate-limited (model-calling) route.
+# Durable (survives a process restart / a new Vercel instance) and shared across
+# every instance talking to this database — the two properties the old
+# in-process `request_counts` dict in main.py never had. `key` is the visitor
+# identity rate_limit.derive_key() derived (trusted X-Forwarded-For, or the raw
+# peer address); `route` collapses id-bearing paths to one label per route (see
+# rate_limit.route_label_for). Rows older than the window are pruned on every
+# write (rate_limit.prune), so this table never grows unbounded.
+class RateLimitHit(Base):
+    __tablename__ = "rate_limit_hits"
+
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String, nullable=False)
+    route = Column(String, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+    __table_args__ = (
+        Index("ix_rate_limit_hits_key_route_created", "key", "route", "created_at"),
+    )
