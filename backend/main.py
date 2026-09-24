@@ -206,6 +206,23 @@ from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 from database import SessionLocal
 import rate_limit
+import usage
+
+# AP36 — one startup WARNING when there is no daily call ceiling (Max's call,
+# delegated 2026-09-22: unset means unlimited, not a low default that 503s a working
+# app on deploy). Mirrors _config.warn_unset_required() above.
+usage.warn_if_unbounded()
+
+
+def _over_budget() -> bool:
+    """Runs on a worker thread (see rate_limit_middleware) — its own session, same
+    reasoning as _check_and_commit below: the route handler's get_db() session hasn't
+    been created yet when the middleware fires."""
+    db = SessionLocal()
+    try:
+        return usage.over_budget(db)
+    finally:
+        db.close()
 
 
 def _check_and_commit(key: str, route: str) -> tuple[bool, int, int]:
@@ -228,6 +245,17 @@ def _check_and_commit(key: str, route: str) -> tuple[bool, int, int]:
 async def rate_limit_middleware(request: Request, call_next):
     if not rate_limit.is_limited_route(request.method, request.url.path):
         return await call_next(request)
+
+    # AP36 — the daily call-budget gate, beside AP35's per-visitor limiter, reusing its
+    # is_limited_route() check rather than a second route list. This has to run BEFORE
+    # call_next: it is the only way to guarantee the provider client is never
+    # constructed once the budget is spent (llm.py's OpenAI() client is built lazily,
+    # inside chat_json, which this request never reaches).
+    if await run_in_threadpool(_over_budget):
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "Daily AI usage budget has been reached. Please try again tomorrow."},
+        )
 
     key = rate_limit.derive_key(request)
     route = rate_limit.route_label_for(request.url.path)

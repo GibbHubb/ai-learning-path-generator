@@ -14,6 +14,7 @@ import json
 from database import get_db
 from models import LearningPath, Milestone, MilestoneNote, MilestoneTask, PathRevision, User
 import llm
+import usage
 from ai_service import generate_learning_path, stream_learning_path, enrich_milestone_resources, adjust_difficulty
 from schemas import PathGenerationError  # AP33
 from auth import (
@@ -238,6 +239,10 @@ _IDLESS_READS = {
     ("GET", "/explore"),   # public by design: filters LearningPath.is_public == True
     ("GET", "/"),          # main.py: static API banner, no data
     ("GET", "/health"),    # main.py: liveness + DB ping, no data
+    # AP36 — same reasoning as POST /jobs/run-reminders above: its OWN guard (a
+    # CRON_SECRET shared secret), not one of the three ownership helpers — there is no
+    # owning user to check a usage summary against.
+    ("GET", "/admin/usage"),
 }
 
 # AP32 close-out (review round 3) — id-taking GET routes that are deliberately readable
@@ -1679,6 +1684,21 @@ async def manual_run_reminders(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Not authenticated")
     summary = send_reminders(db)
     return summary
+
+
+@router.get("/admin/usage")
+async def admin_usage(request: Request, db: Session = Depends(get_db)):
+    """AP36 — today's per-model call count, summed tokens and the oldest price-table
+    source date. Gated on the same shared-secret pattern as /jobs/run-reminders above:
+    unset CRON_SECRET disables the route (503) rather than leaving it open."""
+    expected = os.environ.get("CRON_SECRET")
+    if not expected:
+        raise HTTPException(
+            status_code=503,
+            detail="Usage endpoint is disabled: CRON_SECRET is not configured.")
+    if not hmac.compare_digest(request.headers.get("X-Cron-Secret", ""), expected):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return usage.summary_today(db)
 
 
 # ---------------------------------------------------------------------------

@@ -205,3 +205,38 @@ class RateLimitHit(Base):
     __table_args__ = (
         Index("ix_rate_limit_hits_key_route_created", "key", "route", "created_at"),
     )
+
+
+# AP36 — one row per llm.chat_json call, success OR failure. Written by
+# usage.record_call, called from INSIDE chat_json (llm.py) so every present and
+# future caller is covered by construction, not by remembering to call it.
+#
+# `route` is the caller's function name, derived inside chat_json via
+# inspect.currentframe().f_back — best-effort labelling, never a hard requirement
+# (falls back to "unknown" rather than losing the row). `light` marks the
+# higher-quota/cheaper model (enrichment, quizzes).
+#
+# `prompt_tokens`/`completion_tokens` are NULL when the provider response carried
+# no `usage` attribute at all — observed as a real possibility on the
+# Gemini-through-the-OpenAI-SDK path (see llm.py), not assumed away. A NULL never
+# costs the row: it is still written, with `ok=True`.
+#
+# `finish_reason` holds the provider's finish reason on success, or the exception
+# TYPE NAME on failure (`ok=False`) — so a burst of provider errors shows up as a
+# value to group by, not silence.
+#
+# `est_cost_usd` is NULL for any model missing from usage._PRICES (never guessed
+# — see usage.py) and 0.0 for a priced free-tier model, which is the honest value.
+class ModelCall(Base):
+    __tablename__ = "model_calls"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ts = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    route = Column(String, nullable=False)
+    model = Column(String, nullable=False)
+    light = Column(Boolean, nullable=False, default=False)
+    prompt_tokens = Column(Integer, nullable=True)
+    completion_tokens = Column(Integer, nullable=True)
+    finish_reason = Column(String, nullable=True)
+    est_cost_usd = Column(Float, nullable=True)
+    ok = Column(Boolean, nullable=False)

@@ -402,6 +402,12 @@ Every path and its completion state are stored in SQLite.
 - ~~**Rate Limiting**: Prevent API abuse~~ — done (AP35): a durable, per-visitor,
   database-backed limiter on every route that calls a model. See `.env.example`
   (`TRUSTED_PROXY_HEADER`) and `backend/rate_limit.py`.
+- ~~**Cost/usage tracking**: cap and count model calls~~ — done (AP36): every
+  `llm.chat_json` call is capped (`max_tokens`, `timeout`) and recorded, win or fail,
+  in `model_calls`. A `DAILY_CALL_BUDGET` env var caps total calls per day — once spent,
+  the model-calling routes 503 without ever constructing the provider client. See
+  `.env.example` (`DAILY_CALL_BUDGET`), `backend/usage.py`, and the CRON_SECRET-gated
+  `GET /api/admin/usage` for today's per-model counts.
 - **PostgreSQL**: Production-ready database
 - **Docker**: Containerized deployment
 - **CI/CD**: Automated testing and deployment
