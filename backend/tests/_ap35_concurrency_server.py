@@ -33,15 +33,21 @@ else:
     os.environ.pop("TRUSTED_PROXY_HEADER", None)
 
 import routes  # noqa: E402
+from schemas import GeneratedPath  # noqa: E402
 
 
 def _fake_generate(goal, experience_level, time_commitment, language="en"):
-    return {
-        "path_title": "Concurrency Test",
-        "path_description": "stubbed for AP35's concurrency test — no real AI call",
-        "category": "Other",
-        "milestones": [],
-    }
+    # AP33 — real generate_learning_path now returns a validated GeneratedPath (and
+    # requires >=1 milestone), so the stub must too, or routes.py's attribute access
+    # (ai_result.path_title, etc.) below would blow up on a raw dict.
+    return GeneratedPath(
+        path_title="Concurrency Test",
+        path_description="stubbed for AP35's concurrency test — no real AI call",
+        category="Other",
+        milestones=[
+            {"title": "m1", "description": "stub milestone", "estimated_hours": 1.0, "resources": []},
+        ],
+    )
 
 
 routes.generate_learning_path = _fake_generate

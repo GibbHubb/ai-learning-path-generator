@@ -19,6 +19,7 @@ from database import Base, engine, SessionLocal  # noqa: E402
 import auth as auth_module  # noqa: E402
 from main import app  # noqa: E402
 from models import LearningPath, MagicLink, Session, User  # noqa: E402
+from schemas import GeneratedPath  # noqa: E402 — AP33: generate_learning_path returns this now
 
 
 @pytest.fixture(autouse=True)
@@ -160,15 +161,15 @@ def test_anonymous_path_claimed_on_verify(client, captured_tokens, monkeypatch):
     """Generate a path while anonymous, then sign in — the path should attach."""
     # Stub the AI generation so we don't hit OpenAI
     import routes as routes_mod
-    monkeypatch.setattr(routes_mod, "generate_learning_path", lambda *a, **kw: {
-        "path_title": "Anon Path", "path_description": "x",
-        "category": "Programming",
-        "milestones": [{"title": "M1", "description": "x", "estimated_hours": 1.0, "resources": []}],
-    })
+    monkeypatch.setattr(routes_mod, "generate_learning_path", lambda *a, **kw: GeneratedPath(
+        path_title="Anon Path", path_description="x",
+        category="Programming",
+        milestones=[{"title": "M1", "description": "x", "estimated_hours": 1.0, "resources": []}],
+    ))
 
     # Create as anonymous (no session cookie) — backend sets ap_anon_id
     res = client.post("/api/generate", json={
-        "goal": "Test", "experience_level": "beginner", "time_commitment": "5h",
+        "goal": "Test goal", "experience_level": "beginner", "time_commitment": "5-10 hours/week",
     })
     assert res.status_code == 200, res.text
     assert "ap_anon_id" in client.cookies

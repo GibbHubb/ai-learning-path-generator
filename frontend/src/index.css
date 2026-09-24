@@ -244,6 +244,14 @@ textarea.input-field {
   min-height: 100px;
 }
 
+/* AP34 — character counter under the goal textarea, mirrors its maxLength */
+.input-char-counter {
+  margin: var(--spacing-xs) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  text-align: right;
+}
+
 /* Loading Spinner */
 .spinner {
   display: inline-block;

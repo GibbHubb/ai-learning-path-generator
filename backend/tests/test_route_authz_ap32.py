@@ -26,6 +26,7 @@ from main import app  # noqa: E402
 from models import LearningPath, Milestone  # noqa: E402
 from database import SessionLocal  # noqa: E402
 import routes as routes_module  # noqa: E402
+from schemas import GeneratedMilestone  # noqa: E402 — AP33: adjust_difficulty returns these now
 
 
 @pytest.fixture(autouse=True)
@@ -232,7 +233,9 @@ def test_signed_in_owner_feedback_regeneration_reaches_adjust_difficulty(client,
 
     def fake_adjust(**kwargs):
         called.append(kwargs)
-        return [{"title": "new m", "description": "d", "estimated_hours": 1, "resources": []}]
+        # AP33 — adjust_difficulty now returns validated GeneratedMilestone objects,
+        # not raw dicts (routes.py accesses md.title/.description/etc. by attribute).
+        return [GeneratedMilestone(title="new m", description="d", estimated_hours=1, resources=[])]
 
     with patch("routes.adjust_difficulty", fake_adjust):
         res = client.post(f"/api/milestones/{milestone_id}/feedback",

@@ -6,6 +6,13 @@ import './LandingPage.css';
 // unchanged: vite.config.js already proxies /api to localhost:8000.
 const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
+// AP34 — mirrors backend/routes.py's GOAL_MAX_LENGTH. experience_level and
+// time_commitment are closed <select> dropdowns below, so there is no free-text
+// value for a maxLength to bound there — the fixed option list already is the
+// constraint. goal is the one free-text input, so it gets the length cap + counter.
+const GOAL_MAX_LENGTH = 2000;
+const GOAL_MIN_LENGTH = 3;   // mirrors routes.py's min_length
+
 const LandingPage = ({ onPathGenerated, onExplore }) => {
     const [formData, setFormData] = useState({
         goal: '',
@@ -33,7 +40,12 @@ const LandingPage = ({ onPathGenerated, onExplore }) => {
 
             if (!response.ok) {
                 const err = await response.json().catch(() => ({}));
-                throw new Error(err.detail || `Server error ${response.status}`);
+                // AP34 — FastAPI's 422 `detail` is an ARRAY of field errors, and
+                // rendering it straight gave "⚠️ [object Object]" (review, 2026-09-24).
+                const detail = Array.isArray(err.detail)
+                    ? err.detail.map((d) => d.msg || JSON.stringify(d)).join('; ')
+                    : err.detail;
+                throw new Error(detail || `Server error ${response.status}`);
             }
 
             const reader = response.body.getReader();
@@ -142,8 +154,14 @@ const LandingPage = ({ onPathGenerated, onExplore }) => {
                                 value={formData.goal}
                                 onChange={handleChange}
                                 required
+                                minLength={GOAL_MIN_LENGTH}
+                                maxLength={GOAL_MAX_LENGTH}
                                 disabled={isGenerating}
                             />
+                            {/* AP34 — matches the server's max_length so a rejection never surprises the user */}
+                            <p className="input-char-counter">
+                                {formData.goal.length}/{GOAL_MAX_LENGTH}
+                            </p>
                         </div>
 
                         <div className="form-row">

@@ -30,6 +30,7 @@ import quizzes as quizzes_module  # noqa: E402
 import rate_limit  # noqa: E402
 from main import app  # noqa: E402
 from models import LearningPath, Milestone, RateLimitHit  # noqa: E402
+from schemas import GeneratedPath  # noqa: E402 — AP33: generate_learning_path returns this now
 
 
 @pytest.fixture(autouse=True)
@@ -67,11 +68,14 @@ def _sign_in(client, captured_tokens, email):
 
 
 def _generate_mock():
-    return patch("routes.generate_learning_path", return_value={
-        "path_title": "Rate Limit Test",
-        "path_description": "Desc",
-        "milestones": [],
-    })
+    # AP33 — GeneratedPath requires >=1 milestone, matching real generation output.
+    return patch("routes.generate_learning_path", return_value=GeneratedPath(
+        path_title="Rate Limit Test",
+        path_description="Desc",
+        milestones=[
+            {"title": "m", "description": "d", "estimated_hours": 1.0, "resources": []},
+        ],
+    ))
 
 
 def _make_owned_milestone(owner_id: int, body: str | None = None) -> tuple[int, int]:
@@ -105,7 +109,7 @@ def test_six_different_forwarded_for_values_all_succeed_when_trusted(client, mon
     with _generate_mock():
         for i in range(6):
             res = client.post("/api/generate", json={
-                "goal": f"g{i}", "experience_level": "beginner",
+                "goal": f"goal-{i}", "experience_level": "beginner",
                 "time_commitment": "5-10 hours/week",
             }, headers={"X-Forwarded-For": f"10.0.0.{i}"})
             assert res.status_code == 200, res.text
@@ -116,7 +120,7 @@ def test_same_forwarded_for_value_trips_the_limit_on_the_sixth(client, monkeypat
     with _generate_mock():
         for i in range(6):
             res = client.post("/api/generate", json={
-                "goal": f"g{i}", "experience_level": "beginner",
+                "goal": f"goal-{i}", "experience_level": "beginner",
                 "time_commitment": "5-10 hours/week",
             }, headers={"X-Forwarded-For": "10.0.0.9"})
             if i < 5:
@@ -131,7 +135,7 @@ def test_spoofed_forwarded_for_ignored_without_trusted_proxy_config(client, monk
     with _generate_mock():
         for i in range(6):
             res = client.post("/api/generate", json={
-                "goal": f"g{i}", "experience_level": "beginner",
+                "goal": f"goal-{i}", "experience_level": "beginner",
                 "time_commitment": "5-10 hours/week",
             }, headers={"X-Forwarded-For": f"10.0.0.{i}"})  # a different forged value every time
             if i < 5:
@@ -162,14 +166,14 @@ def test_state_shared_across_two_independently_constructed_app_instances(monkeyp
     with _generate_mock():
         for i, c in enumerate([client1, client1, client1, client2, client2]):
             res = c.post("/api/generate", json={
-                "goal": f"g{i}", "experience_level": "beginner",
+                "goal": f"goal-{i}", "experience_level": "beginner",
                 "time_commitment": "5-10 hours/week",
             })
             assert res.status_code == 200, res.text
         # 6th request, on the OTHER instance again — must still be blocked,
         # proving the count lives in the database, not in either process.
         res = client2.post("/api/generate", json={
-            "goal": "g6", "experience_level": "beginner",
+            "goal": "goal-6", "experience_level": "beginner",
             "time_commitment": "5-10 hours/week",
         })
         assert res.status_code == 429, res.text
@@ -215,7 +219,7 @@ def test_429_carries_retry_after_and_ratelimit_headers(client):
     with _generate_mock():
         for i in range(6):
             res = client.post("/api/generate", json={
-                "goal": f"g{i}", "experience_level": "beginner",
+                "goal": f"goal-{i}", "experience_level": "beginner",
                 "time_commitment": "5-10 hours/week",
             })
     assert res.status_code == 429, res.text
@@ -229,7 +233,7 @@ def test_429_carries_retry_after_and_ratelimit_headers(client):
 def test_200_also_carries_ratelimit_headers(client):
     with _generate_mock():
         res = client.post("/api/generate", json={
-            "goal": "g", "experience_level": "beginner",
+            "goal": "goal", "experience_level": "beginner",
             "time_commitment": "5-10 hours/week",
         })
     assert res.status_code == 200, res.text
@@ -254,7 +258,7 @@ def test_stale_rows_are_pruned_on_write():
     client_ = TestClient(app)
     with _generate_mock():
         res = client_.post("/api/generate", json={
-            "goal": "g", "experience_level": "beginner",
+            "goal": "goal", "experience_level": "beginner",
             "time_commitment": "5-10 hours/week",
         })
     assert res.status_code == 200, res.text

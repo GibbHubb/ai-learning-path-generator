@@ -6,8 +6,8 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query, Request, Response
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, EmailStr
-from typing import List, Optional
+from pydantic import BaseModel, EmailStr, Field
+from typing import List, Literal, Optional
 from datetime import datetime
 import json
 
@@ -15,6 +15,7 @@ from database import get_db
 from models import LearningPath, Milestone, MilestoneNote, MilestoneTask, PathRevision, User
 import llm
 from ai_service import generate_learning_path, stream_learning_path, enrich_milestone_resources, adjust_difficulty
+from schemas import PathGenerationError  # AP33
 from auth import (
     SESSION_COOKIE,
     end_session,
@@ -47,11 +48,41 @@ class MilestoneCreate(BaseModel):
     estimated_hours: float
     resources: List[str]
 
+# AP34 — bounds on the /generate request models. Numbers come from what the UI can
+# actually submit (frontend/src/components/LandingPage.jsx) plus headroom for `goal`,
+# not a guess:
+#   - experience_level / time_commitment are closed <select> dropdowns — the allowlists
+#     below are the exact option values, read out of LandingPage.jsx on 2026-09-22.
+#   - goal is a free-text <textarea> with no existing maxLength; 2000 chars is roughly
+#     500 tokens — generous for a one-line learning goal, small enough it cannot
+#     dominate the prompt or blow past the request-size a paid call should ever see.
+GOAL_MIN_LENGTH = 3
+GOAL_MAX_LENGTH = 2000
+EXPERIENCE_LEVELS = ("beginner", "intermediate", "advanced")
+TIME_COMMITMENTS = (
+    "1-5 hours/week", "5-10 hours/week", "10-20 hours/week", "20+ hours/week",
+)
+TASK_TITLE_MAX_LENGTH = 200
+NOTE_CONTENT_MAX_LENGTH = 10000
+
+
 class LearningPathCreate(BaseModel):
-    goal: str
-    experience_level: str
-    time_commitment: str
-    language: Optional[str] = "en"  # AP27 — unknown values fall back to en in ai_service
+    goal: str = Field(min_length=GOAL_MIN_LENGTH, max_length=GOAL_MAX_LENGTH)
+    # /code-review round 1 caught Literal["beginner", ...] as a SEPARATE hardcoded copy of
+    # EXPERIENCE_LEVELS above — a future edit to the tuple wouldn't touch this, so the
+    # allowlist-superset test would keep passing while real requests still 422'd.
+    # Round 2 caught the fix for that (`Literal[*EXPERIENCE_LEVELS]`, PEP 646
+    # star-unpacking): a SyntaxError on Python < 3.11, and README.md's own Prerequisites
+    # say "Python 3.8+" — Vercel's builder is unpinned, so this would have broken the
+    # entire app on deploy while every local/CI run (3.13.2) stayed green. Reverted to
+    # hardcoded values (portable back to 3.8) and moved the drift guard to a test instead:
+    # test_input_validation_ap34.py::test_literal_allowlists_match_their_source_tuples
+    # uses typing.get_args() to assert these stay byte-identical to the tuples above.
+    experience_level: Literal["beginner", "intermediate", "advanced"] = Field(...)
+    time_commitment: Literal[
+        "1-5 hours/week", "5-10 hours/week", "10-20 hours/week", "20+ hours/week",
+    ] = Field(...)
+    language: Optional[str] = Field(default="en", max_length=10)  # AP27 — unknown values fall back to en in ai_service
 
 class MilestoneTaskOut(BaseModel):
     id: int
@@ -118,21 +149,23 @@ class MilestoneUpdate(BaseModel):
 
 # AP23 — sub-task payloads
 class MilestoneTaskCreate(BaseModel):
-    title: str
+    title: str = Field(min_length=1, max_length=TASK_TITLE_MAX_LENGTH)
 
 
 class MilestoneTaskUpdate(BaseModel):
-    completed: Optional[bool] = None
-    title: Optional[str] = None
+    completed: Optional[bool] = Field(default=None)
+    title: Optional[str] = Field(default=None, max_length=TASK_TITLE_MAX_LENGTH)
 
 class ShareUpdate(BaseModel):
-    is_public: bool = True
+    is_public: bool = Field(default=True)
 
 
 # AP5 — difficulty feedback payload
 class DifficultyFeedback(BaseModel):
-    milestone_id: int
-    feedback: str  # "too_easy" | "just_right" | "too_hard" (or any "ok"-like value)
+    milestone_id: int = Field(gt=0)
+    # AP34 — was a bare str; routes.py:1129 branched on only two of the three values
+    # and silently no-op'd anything else (a typo meant "no change" instead of a 422).
+    feedback: Literal["too_easy", "just_right", "too_hard"] = Field(...)
 
 
 # AP9 — auth payloads
@@ -410,6 +443,10 @@ async def create_learning_path_endpoint(
 ):
     """Generate a new learning path using AI"""
     try:
+        # AP33 — `ai_result` is now a validated `schemas.GeneratedPath`, not a raw dict:
+        # a missing/malformed key is a static AttributeError-can't-happen, not a runtime
+        # KeyError. Validation (with one retry) happens INSIDE generate_learning_path,
+        # before this call returns, so nothing below ever runs on a bad response.
         ai_result = generate_learning_path(
             path_data.goal, path_data.experience_level, path_data.time_commitment,
             path_data.language or "en",  # AP27
@@ -421,11 +458,11 @@ async def create_learning_path_endpoint(
         anon_id = None if current_user else ensure_anon_id(request, response)
 
         db_path = LearningPath(
-            title=ai_result["path_title"],
-            description=ai_result["path_description"],
+            title=ai_result.path_title,
+            description=ai_result.path_description,
             experience_level=path_data.experience_level,
             time_commitment=path_data.time_commitment,
-            category=ai_result.get("category", "Other"),  # AP6
+            category=ai_result.category,  # AP6 — already validated/coerced to one of 7
             user_id=owner_id,
             anon_session_id=anon_id,
             language=path_data.language or "en",  # AP27
@@ -434,14 +471,14 @@ async def create_learning_path_endpoint(
         db.flush()
 
         created = []
-        for idx, milestone_data in enumerate(ai_result["milestones"]):
+        for idx, milestone_data in enumerate(ai_result.milestones):
             milestone = Milestone(
                 learning_path_id=db_path.id,
-                title=milestone_data["title"],
-                description=milestone_data["description"],
+                title=milestone_data.title,
+                description=milestone_data.description,
                 order=idx,
-                estimated_hours=milestone_data["estimated_hours"],
-                resources=json.dumps(milestone_data["resources"]),
+                estimated_hours=milestone_data.estimated_hours,
+                resources=json.dumps(milestone_data.resources),
                 completed=False,
             )
             db.add(milestone)
@@ -460,6 +497,16 @@ async def create_learning_path_endpoint(
 
         return _build_path_response(db_path)
 
+    except PathGenerationError as e:
+        # AP33 — nothing was ever added to `db` at this point (generate_learning_path
+        # raises before this try-block's first `db.add`), so rollback is a no-op safety
+        # net, not a recovery from a partial write.
+        db.rollback()
+        logger.warning(f"AP33: path generation failed schema validation: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail="The AI generated an incomplete or invalid learning path. Please try again.",
+        )
     except Exception as e:
         db.rollback()
         logger.error(f"Error creating learning path: {e}")
@@ -486,6 +533,12 @@ async def generate_stream(
 
     def event_generator():
         try:
+            # AP33 — `list(...)` fully drains stream_learning_path BEFORE this generator's
+            # first `yield`. stream_learning_path's only work is calling
+            # generate_learning_path (which validates + retries + may raise
+            # PathGenerationError) and then iterating its `.milestones`. So a malformed
+            # model response is caught here, before any `data:`/`event:` frame is sent —
+            # and before the `db.add(db_path)` below, so zero rows are written either.
             milestones_data = list(stream_learning_path(
                 path_data.goal, path_data.experience_level, path_data.time_commitment, lang,
             ))
@@ -494,11 +547,11 @@ async def generate_stream(
             ai_result = _glp(path_data.goal, path_data.experience_level, path_data.time_commitment, lang)
 
             db_path = LearningPath(
-                title=ai_result["path_title"],
-                description=ai_result["path_description"],
+                title=ai_result.path_title,
+                description=ai_result.path_description,
                 experience_level=path_data.experience_level,
                 time_commitment=path_data.time_commitment,
-                category=ai_result.get("category", "Other"),  # AP6
+                category=ai_result.category,  # AP6 — already validated/coerced to one of 7
                 user_id=owner_id,
                 anon_session_id=anon_id,
                 language=lang,  # AP27
@@ -510,11 +563,11 @@ async def generate_stream(
             for idx, milestone_data in enumerate(milestones_data):
                 m = Milestone(
                     learning_path_id=db_path.id,
-                    title=milestone_data["title"],
-                    description=milestone_data["description"],
+                    title=milestone_data.title,
+                    description=milestone_data.description,
                     order=idx,
-                    estimated_hours=milestone_data["estimated_hours"],
-                    resources=json.dumps(milestone_data["resources"]),
+                    estimated_hours=milestone_data.estimated_hours,
+                    resources=json.dumps(milestone_data.resources),
                     completed=False,
                 )
                 db.add(m)
@@ -527,7 +580,7 @@ async def generate_stream(
                     "description": m.description,
                     "order": m.order,
                     "estimated_hours": m.estimated_hours,
-                    "resources": milestone_data["resources"],
+                    "resources": milestone_data.resources,
                     "completed": False,
                     "completed_at": None,
                 }
@@ -570,6 +623,16 @@ async def generate_stream(
             }
             yield f"event: done\ndata: {json.dumps(full_path)}\n\n"
 
+        except PathGenerationError as e:
+            # AP33 — see the comment above: nothing was added to `db` yet when this can
+            # fire, so rollback is a no-op safety net, not a recovery from a partial write.
+            db.rollback()
+            logger.warning(f"AP33: stream path generation failed schema validation: {e}")
+            yield (
+                "event: error\ndata: "
+                + json.dumps({"detail": "The AI generated an incomplete or invalid learning path. Please try again."})
+                + "\n\n"
+            )
         except Exception as e:
             db.rollback()
             logger.error(f"Error in stream endpoint: {e}")
@@ -1181,6 +1244,15 @@ async def milestone_feedback(
             feedback=feedback,
             language=path_language,  # AP27 — keep regenerated milestones in same language
         )
+    except PathGenerationError as e:
+        # AP33 — fires before snapshot_revision/delete/insert below, so nothing about
+        # this path has been mutated yet; rollback is a no-op safety net.
+        db.rollback()
+        logger.warning(f"AP33: adjust_difficulty failed schema validation for path {path.id}: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail="The AI generated an incomplete or invalid set of milestones. Please try again.",
+        )
     except Exception as e:
         db.rollback()
         logger.error(f"adjust_difficulty failed for path {path.id}: {e}")
@@ -1202,13 +1274,17 @@ async def milestone_feedback(
             new_order = orders_to_reuse[idx]
         else:
             new_order = orders_to_reuse[-1] + (idx - len(orders_to_reuse) + 1) if orders_to_reuse else milestone.order + idx + 1
+        # AP33 — md is now a validated schemas.GeneratedMilestone (title/description/
+        # estimated_hours all required, non-empty, bounded), not a raw dict — the old
+        # .get(..., default) fallbacks silently patched a malformed response instead of
+        # rejecting it; adjust_difficulty now rejects it before this loop ever runs.
         new_m = Milestone(
             learning_path_id=path.id,
-            title=md.get("title", f"Milestone {new_order + 1}"),
-            description=md.get("description", ""),
+            title=md.title,
+            description=md.description,
             order=new_order,
-            estimated_hours=md.get("estimated_hours", 0) or 0,
-            resources=json.dumps(md.get("resources", [])),
+            estimated_hours=md.estimated_hours,
+            resources=json.dumps(md.resources),
             completed=False,
         )
         db.add(new_m)
@@ -1389,8 +1465,10 @@ async def explore_public_paths(db: Session = Depends(get_db)):
 
 
 class NoteUpsert(BaseModel):
-    content: str
-    is_private: bool = False
+    # AP34 — max_length only: empty/whitespace content is a legitimate submission that
+    # deletes the note (see upsert_my_note below), so no min_length here.
+    content: str = Field(max_length=NOTE_CONTENT_MAX_LENGTH)
+    is_private: bool = Field(default=False)
 
 
 class NoteResponse(BaseModel):

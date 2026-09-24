@@ -8,6 +8,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from main import app
+from schemas import GeneratedPath  # AP33 — generate_learning_path now returns this, not a dict
 
 client = TestClient(app)
 
@@ -47,11 +48,12 @@ def test_health_check_reports_a_dead_database():
 
 @patch("routes.generate_learning_path")
 def test_generate_learning_path(mock_generate):
-    # Mock the AI response
-    mock_generate.return_value = {
-        "path_title": "Test Path",
-        "path_description": "Test Description",
-        "milestones": [
+    # Mock the AI response — AP33: a validated GeneratedPath, matching what the real
+    # function now returns (routes.py accesses it by attribute, not by subscript).
+    mock_generate.return_value = GeneratedPath(
+        path_title="Test Path",
+        path_description="Test Description",
+        milestones=[
             {
                 "title": "Test Milestone",
                 "description": "Test Description",
@@ -59,8 +61,8 @@ def test_generate_learning_path(mock_generate):
                 "resources": ["Resource 1"]
             }
         ]
-    }
-    
+    )
+
     response = client.post("/api/generate", json={
         "goal": "Test Goal",
         "experience_level": "beginner",
@@ -88,11 +90,14 @@ def test_rate_limiting():
     """
     # Mock generation to avoid hitting API/Cache logic
     with patch("routes.generate_learning_path") as mock_generate:
-        mock_generate.return_value = {
-            "path_title": "Rate Limit Test",
-            "path_description": "Desc",
-            "milestones": []
-        }
+        # AP33 — GeneratedPath requires >=1 milestone, matching real generation output.
+        mock_generate.return_value = GeneratedPath(
+            path_title="Rate Limit Test",
+            path_description="Desc",
+            milestones=[
+                {"title": "m", "description": "d", "estimated_hours": 1.0, "resources": []},
+            ],
+        )
 
         # Make 6 requests (limit is 5)
         for i in range(6):
