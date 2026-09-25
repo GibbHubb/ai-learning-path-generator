@@ -398,7 +398,15 @@ Every path and its completion state are stored in SQLite.
 - **Collaborative Paths**: Team learning with shared progress
 
 ### Technical Improvements
-- **Caching**: Cache AI responses for common goals
+- ~~**Caching**: Cache AI responses for common goals~~ — done (AP37): a durable
+  `generation_cache` DB table replaces the old in-process dict (which almost never
+  hit on Vercel — a fresh, empty dict per recycled function instance). Keyed on a
+  SHA-256 of the normalised `(goal, experience_level, time_commitment, language,
+  model)` tuple, so casing/whitespace variants of the same goal collide and a model
+  change never silently serves stale output. Only a schema-valid result is ever
+  cached; entries expire after `CACHE_TTL_DAYS` (default 30, see `.env.example`).
+  Also closed the streaming endpoint's double provider call (`/api/generate/stream`
+  used to call the generator AND the plain generator again for the header fields).
 - ~~**Rate Limiting**: Prevent API abuse~~ — done (AP35): a durable, per-visitor,
   database-backed limiter on every route that calls a model. See `.env.example`
   (`TRUSTED_PROXY_HEADER`) and `backend/rate_limit.py`.

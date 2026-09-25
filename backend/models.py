@@ -240,3 +240,24 @@ class ModelCall(Base):
     finish_reason = Column(String, nullable=True)
     est_cost_usd = Column(Float, nullable=True)
     ok = Column(Boolean, nullable=False)
+
+
+# AP37 — durable, cross-process replacement for the in-process `CACHE = {}` dict
+# ai_service.py used to carry. `key_hash` is a SHA-256 of the normalised
+# (goal, experience_level, time_commitment, language, model) tuple
+# (ai_service._cache_key) — a hash so the stored key never carries raw user text
+# and cannot grow unboundedly wide. `payload_json` holds the validated
+# `schemas.GeneratedPath` (json-dumped) — only ever written AFTER AP33's schema
+# validation passes, so a bad generation can never be served from cache.
+# `model` is part of the key AND stored on the row so a later model change is
+# self-evident, not just non-colliding. `hit_count` is bumped on every serve —
+# the measurable proof the cache is doing something, not an assumption.
+class GenerationCache(Base):
+    __tablename__ = "generation_cache"
+
+    id = Column(Integer, primary_key=True, index=True)
+    key_hash = Column(String, nullable=False, unique=True, index=True)
+    payload_json = Column(Text, nullable=False)
+    model = Column(String, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    hit_count = Column(Integer, nullable=False, default=0)

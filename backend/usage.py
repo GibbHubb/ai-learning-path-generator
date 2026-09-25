@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
-from database import DATABASE_URL, SessionLocal
+from database import isolated_session
 from models import ModelCall
 
 logger = logging.getLogger(__name__)
@@ -64,36 +64,26 @@ def estimate_cost_usd(model: str, prompt_tokens: int | None,
     return (prompt_tokens * entry["prompt"] + completion_tokens * entry["completion"]) / 1_000_000
 
 
-_recorder_engine = None
-
-
 def _recorder_session():
-    """A session on a NullPool engine: one connection, opened and closed per row.
+    """A session on its own NullPool engine: one connection, opened and closed
+    per row — NOT `SessionLocal()`. `database.py` caps the non-SQLite pool at
+    `pool_size=1, max_overflow=0`, and the request handler that triggered this
+    model call is still holding that one connection inside an open
+    transaction. A second session from the same pool would wait for a
+    connection that cannot be released until the handler returns: in
+    production every call would stall for the pool timeout, the exception
+    would be swallowed by `record_call`, and NO row would ever be written —
+    leaving `calls_today()` at 0 and the budget permanently unenforced. The
+    SQLite suite cannot see it (SQLite gets no pool cap), which is why the
+    tests were green. Found by /code-review, 2026-09-24.
 
-    🔴 NOT `SessionLocal()`. `database.py` caps the non-SQLite pool at
-    `pool_size=1, max_overflow=0`, and the request handler that triggered this model
-    call is still holding that one connection inside an open transaction. A second
-    session from the same pool would wait for a connection that cannot be released
-    until the handler returns: in production every call would stall for the pool
-    timeout, the exception would be swallowed by `record_call`, and NO row would ever
-    be written — leaving `calls_today()` at 0 and the budget permanently unenforced.
-    The SQLite suite cannot see it (SQLite gets no pool cap), which is why the tests
-    were green. Found by /code-review, 2026-09-24.
-
-    SQLite keeps the app engine: it has no pool cap, and a second engine on the same
-    file would fight the suite's per-test drop/create.
+    AP37 (/code-review, 2026-09-24): this used to build its own NullPool
+    engine inline; `ai_service.py`'s generation cache needed the exact same
+    fix, so the construction now lives once in `database.isolated_session()`
+    and this stays as a thin, named wrapper so existing call sites keep
+    reading "the recorder's session" without duplicating the engine setup.
     """
-    global _recorder_engine
-    from database import is_sqlite
-    if is_sqlite:
-        return SessionLocal()
-    if _recorder_engine is None:
-        from sqlalchemy import create_engine
-        from sqlalchemy.orm import sessionmaker
-        from sqlalchemy.pool import NullPool
-        _recorder_engine = sessionmaker(
-            bind=create_engine(DATABASE_URL, poolclass=NullPool, pool_pre_ping=True))
-    return _recorder_engine()
+    return isolated_session()
 
 
 def record_call(*, route: str, model: str, light: bool,

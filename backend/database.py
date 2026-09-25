@@ -32,3 +32,39 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+_isolated_engine = None
+
+
+def isolated_session():
+    """A session on its own NullPool engine: one connection, opened and closed
+    per use, instead of drawing from the app's shared pool.
+
+    🔴 On a non-SQLite deployment `engine` above is capped at `pool_size=1,
+    max_overflow=0`. A caller running INSIDE a request handler that already
+    holds that one connection (an open `Depends(get_db)` transaction) would
+    deadlock waiting for a second connection from the same pool — the wait
+    times out silently in production and the caller's write never happens.
+    usage.py hit exactly this (see its `_recorder_session`, AP36); this is
+    the same fix, extracted so a second caller (ai_service.py's generation
+    cache, AP37) does not have to reinvent it.
+
+    SQLite gets no pool cap, so this returns a plain `SessionLocal()` there —
+    a second engine bound to the same file would fight the test suite's
+    per-test drop/create.
+    """
+    global _isolated_engine
+    if is_sqlite:
+        return SessionLocal()
+    if _isolated_engine is None:
+        # Local imports (mirroring usage.py's `_recorder_session`, on purpose):
+        # keeps this engine's construction easy to intercept in a test via
+        # `monkeypatch.setattr("sqlalchemy.create_engine", ...)`, the same
+        # technique test_usage_ap36.py already uses for the identical pattern.
+        from sqlalchemy import create_engine as _create_engine
+        from sqlalchemy.orm import sessionmaker as _sessionmaker
+        from sqlalchemy.pool import NullPool
+        _isolated_engine = _sessionmaker(
+            bind=_create_engine(DATABASE_URL, poolclass=NullPool, pool_pre_ping=True))
+    return _isolated_engine()

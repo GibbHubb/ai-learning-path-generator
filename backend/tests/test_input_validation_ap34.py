@@ -48,7 +48,8 @@ def reset_db():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     auth_module._magic_link_requests.clear()
-    ai_service.CACHE.clear()
+    # AP37: the in-process CACHE dict is gone; the generation_cache TABLE is
+    # already reset by drop_all/create_all above.
     yield
 
 

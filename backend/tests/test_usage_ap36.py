@@ -416,12 +416,18 @@ def test_the_recorder_never_takes_the_apps_one_pooled_connection(monkeypatch):
     at one connection, which the in-flight request already holds. A recorder session
     from that same pool would wait for a connection that cannot be freed, so in
     production every call stalled and NO row was ever written — leaving the budget
-    permanently unenforced. The recorder must use its own NullPool engine."""
+    permanently unenforced. The recorder must use its own NullPool engine.
+
+    AP37 (/code-review, 2026-09-24): usage._recorder_session now delegates to the
+    shared database.isolated_session() (ai_service.py's generation cache needed the
+    identical fix, so the construction was consolidated there) — the lazily-built
+    engine this test resets is now database._isolated_engine, not a usage.py-local
+    one; see test_generation_cache_ap37.py's equivalent guard for the same pattern."""
     import database
     from sqlalchemy.pool import NullPool
 
     monkeypatch.setattr(database, "is_sqlite", False)
-    usage._recorder_engine = None
+    database._isolated_engine = None
     captured = {}
 
     def fake_create_engine(url, **kw):
@@ -432,7 +438,7 @@ def test_the_recorder_never_takes_the_apps_one_pooled_connection(monkeypatch):
     try:
         usage._recorder_session().close()
     finally:
-        usage._recorder_engine = None
+        database._isolated_engine = None
     assert captured.get("poolclass") is NullPool, (
         "the recorder must not draw from the app's size-1 pool")
 

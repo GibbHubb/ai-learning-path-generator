@@ -59,21 +59,51 @@ def provider() -> str | None:
     return None
 
 
+def _default_models(which: str | None) -> tuple[str, str]:
+    """(main, light) default model ids for a provider name. `which=None` (no
+    provider key configured) falls back to the Gemini defaults, same as
+    `which="gemini"` — Gemini is the primary/free-tier target, and this is a
+    pure lookup, not the "is a provider configured" gate (that stays in
+    `_client_and_model`, which checks `provider()` itself before ever calling
+    this). Kept non-raising so it also safely backs `resolved_model()`, which
+    callers may need BEFORE deciding whether to call the provider at all."""
+    if which == "openai":
+        return (DEFAULT_OPENAI_MODEL, DEFAULT_OPENAI_LIGHT_MODEL)
+    return (DEFAULT_GEMINI_MODEL, DEFAULT_GEMINI_LIGHT_MODEL)
+
+
+def resolved_model(light: bool = False) -> str:
+    """The model id `chat_json` would use for this call, without constructing a
+    client or making a network call — and without requiring a provider key to
+    already be set.
+
+    AP37 — the generation cache needs to know the model BEFORE deciding
+    whether to call the provider at all (the model id is part of the cache
+    key, so a later model change never silently serves the old model's cached
+    output). This never raises on a missing provider key: that failure is
+    `_client_and_model`'s job (via `chat_json`), and it must fire at the SAME
+    point it always has — inside `chat_json` — not earlier, from a cache-key
+    lookup a test may reach with `chat_json` itself mocked and no real key set."""
+    main_default, light_default = _default_models(provider())
+    if light:
+        return os.getenv("LLM_LIGHT_MODEL") or light_default
+    return os.getenv("LLM_MODEL") or main_default
+
+
 def _client_and_model(light: bool):
     from openai import OpenAI
 
     which = provider()
+    if which is None:
+        raise LLMUnavailable("No AI provider configured: set GEMINI_API_KEY (free tier).")
+    main_default, light_default = _default_models(which)
     if which == "gemini":
         client = OpenAI(api_key=os.getenv("GEMINI_API_KEY"), base_url=GEMINI_BASE_URL)
-        defaults = (DEFAULT_GEMINI_MODEL, DEFAULT_GEMINI_LIGHT_MODEL)
-    elif which == "openai":
+    else:  # "openai" — which is only ever "gemini"/"openai"/None, and None just raised
         client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        defaults = (DEFAULT_OPENAI_MODEL, DEFAULT_OPENAI_LIGHT_MODEL)
-    else:
-        raise LLMUnavailable("No AI provider configured: set GEMINI_API_KEY (free tier).")
     if light:
-        return client, os.getenv("LLM_LIGHT_MODEL") or defaults[1]
-    return client, os.getenv("LLM_MODEL") or defaults[0]
+        return client, os.getenv("LLM_LIGHT_MODEL") or light_default
+    return client, os.getenv("LLM_MODEL") or main_default
 
 
 def user_message(exc: BaseException, action: str = "generate your learning path") -> str:

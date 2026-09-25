@@ -538,18 +538,19 @@ async def generate_stream(
 
     def event_generator():
         try:
-            # AP33 — `list(...)` fully drains stream_learning_path BEFORE this generator's
-            # first `yield`. stream_learning_path's only work is calling
-            # generate_learning_path (which validates + retries + may raise
-            # PathGenerationError) and then iterating its `.milestones`. So a malformed
-            # model response is caught here, before any `data:`/`event:` frame is sent —
-            # and before the `db.add(db_path)` below, so zero rows are written either.
-            milestones_data = list(stream_learning_path(
+            # AP33/AP37 — stream_learning_path returns the whole validated result
+            # BEFORE this generator's first `yield` (generate_learning_path validates
+            # + retries + may raise PathGenerationError internally). So a malformed
+            # model response is caught here, before any `data:`/`event:` frame is
+            # sent — and before the `db.add(db_path)` below, so zero rows are written
+            # either. AP37: this used to call the generator AND generate_learning_path
+            # again for the header fields — two provider calls on every cache miss.
+            # Now it's ONE call; milestones_data and the header both come from the
+            # same ai_result.
+            ai_result = stream_learning_path(
                 path_data.goal, path_data.experience_level, path_data.time_commitment, lang,
-            ))
-
-            from ai_service import generate_learning_path as _glp
-            ai_result = _glp(path_data.goal, path_data.experience_level, path_data.time_commitment, lang)
+            )
+            milestones_data = ai_result.milestones
 
             db_path = LearningPath(
                 title=ai_result.path_title,
