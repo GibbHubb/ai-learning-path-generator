@@ -106,7 +106,7 @@ export default function MyPathsPage({ user, onUserUpdate, onPick, onBack }) {
               <p style={{ color: '#94a3b8', margin: '0.5rem 0 0', fontSize: '0.9rem' }}>
                 {p.description}
               </p>
-              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem', fontSize: '0.8rem', color: '#64748b' }}>
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem', fontSize: '0.8rem', color: '#94a3b8' }}>
                 <span>{p.experience_level}</span>
                 <span>·</span>
                 <span>{p.time_commitment}</span>

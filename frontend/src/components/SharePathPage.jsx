@@ -240,7 +240,7 @@ export default function SharePathPage({ pathId, user, onSignIn, onForked }) {
                                                         padding: '0.6rem 0.8rem',
                                                     }}>
                                                         <p style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>{n.content}</p>
-                                                        <p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem', color: '#64748b' }}>
+                                                        <p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem', color: '#94a3b8' }}>
                                                             — {n.author}
                                                         </p>
                                                     </div>

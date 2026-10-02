@@ -141,7 +141,7 @@ const MilestoneTasks = ({ milestoneId, initialTasks, signedIn, onSignIn, onMiles
                         aria-label={`Done: ${t.title}`}
                         style={{ cursor: 'pointer' }}
                     />
-                    <span style={{ flex: 1, fontSize: '0.9rem', color: t.completed ? '#64748b' : '#e2e8f0', textDecoration: t.completed ? 'line-through' : 'none' }}>
+                    <span style={{ flex: 1, fontSize: '0.9rem', color: t.completed ? '#94a3b8' : '#e2e8f0', textDecoration: t.completed ? 'line-through' : 'none' }}>
                         {t.title}
                     </span>
                     <button

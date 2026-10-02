@@ -218,3 +218,26 @@ def test_focus_ring_exists_and_contrasts_with_every_surface_it_sits_on():
     surfaces = ["#0a0a0f", "#13131a", "#1a1a24", "#1e293b"]
     for s in surfaces:
         assert _contrast(ring, s) >= 3.0, (ring, s, _contrast(ring, s))
+
+
+# AP48 — text colours that measured below AA 4.5:1 on this app's dark surfaces
+# (#64748b is 3.07-4.15:1, #6b7280 3.72:1, #6b6b7b 2.8-3.78:1). Borders may use
+# them; TEXT may not. This catches `color: '#64748b'` (JSX) and `color: #64748b`
+# (CSS); a `background`/`border` with the same hex is fine.
+_LOW_CONTRAST = ("#64748b", "#6b7280", "#6b6b7b")
+
+
+def _low_contrast_text(src: str):
+    pat = re.compile(r"(?<![-\w])color\s*:\s*['\"]?(" + "|".join(_LOW_CONTRAST) + r")", re.I)
+    return [src.count("\n", 0, m.start()) + 1 for m in pat.finditer(src)]
+
+
+def test_low_contrast_scanner_control():
+    assert _low_contrast_text("a { color: #64748b; }") == [1]
+    assert _low_contrast_text("style={{ color: '#6b7280' }}") == [1]
+    assert _low_contrast_text("a { border-color: #64748b; background: #6b7280; }") == []
+
+
+@pytest.mark.parametrize("path", JSX_FILES + sorted(SRC.rglob("*.css")), ids=lambda p: p.name)
+def test_no_low_contrast_text_colours(path):
+    assert _low_contrast_text(_code(path)) == []

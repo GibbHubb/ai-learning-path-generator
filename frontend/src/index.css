@@ -232,7 +232,9 @@ body {
 }
 
 .input-field::placeholder {
-  color: var(--text-muted);
+  /* AP48 — --text-muted (#6b6b7b) is 3.45:1 on the input; placeholder text is
+     still text (WCAG 1.4.3). #8b8b9c is 5.4:1 and still reads lighter than a value. */
+  color: #8b8b9c;
 }
 
 select.input-field {

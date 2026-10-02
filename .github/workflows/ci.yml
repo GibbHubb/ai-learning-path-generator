@@ -41,7 +41,7 @@ jobs:
       # The floor for the collected-test count. A suite that silently collects
       # fewer tests reads exactly like a suite that passed. Raise it when you add
       # tests; never lower it to make a red build green.
-      MIN_TESTS: 356
+      MIN_TESTS: 377
     steps:
       - uses: actions/checkout@v4
 
@@ -75,7 +75,20 @@ jobs:
           fi
 
       - name: Test (${{ matrix.db }})
-        run: python -m pytest backend/tests -q -p no:cacheprovider -rs -W ignore::DeprecationWarning
+        # Failed test ids are also emitted as ::error:: annotations: those are
+        # readable without signing in (the job log is not), so a red run can be
+        # diagnosed from the public API.
+        run: |
+          set -o pipefail
+          python -m pytest backend/tests -q -p no:cacheprovider -rfEs -W ignore::DeprecationWarning             2>&1 | tee pytest.log || {
+              grep -E '^(FAILED|ERROR) ' pytest.log | head -20 | while IFS= read -r line; do
+                echo "::error::${line:0:900}"
+              done
+              grep -E '^E  ' pytest.log | head -10 | while IFS= read -r line; do
+                echo "::error::${line:0:900}"
+              done
+              exit 1
+            }
 
   frontend:
     runs-on: ubuntu-latest

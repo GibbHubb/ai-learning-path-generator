@@ -75,7 +75,7 @@ export default function LoginPage({ onBack }) {
               Click the link in your email to finish signing in. The link
               expires in 15 minutes.
             </p>
-            <p style={{ color: '#64748b', fontSize: '0.85rem' }}>
+            <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
               Didn't get it? Check spam, or wait a minute and try again.
             </p>
           </>
