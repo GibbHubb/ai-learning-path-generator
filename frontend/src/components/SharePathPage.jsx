@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { forkPath, getPublicNotes } from '../services/auth';
 import { downloadIcs } from '../utils/exportMarkdown';
 import './LearningPath.css';
+import LiveAlert from './LiveAlert';
 
 // AP31 — relative by default, so the SPA and the API share an origin in
 // production and there is no build-time URL to get wrong. Local dev is
@@ -24,6 +25,8 @@ export default function SharePathPage({ pathId, user, onSignIn, onForked }) {
     const [expandedMilestone, setExpandedMilestone] = useState(null);
     const [forking, setForking] = useState(false);
     const [forkError, setForkError] = useState('');
+    // AP40 — calendar export failures used to go to console.warn only.
+    const [exportError, setExportError] = useState('');
     const [publicNotes, setPublicNotes] = useState({});  // AP12 — { milestone_id: [{content, author, updated_at}] }
 
     useEffect(() => {
@@ -55,17 +58,19 @@ export default function SharePathPage({ pathId, user, onSignIn, onForked }) {
     if (error) {
         return (
             <div className="learning-path-container" style={{ textAlign: 'center', padding: '4rem 1rem' }}>
-                <h2 style={{ color: '#f87171' }}>Path not found</h2>
-                <p style={{ color: '#9ca3af' }}>This learning path doesn't exist or isn't shared publicly.</p>
+                <div role="alert">
+                    <h2 style={{ color: '#f87171' }}>Path not found</h2>
+                    <p style={{ color: '#9ca3af' }}>This learning path doesn't exist or isn't shared publicly.</p>
+                </div>
             </div>
         );
     }
 
     if (!path) {
         return (
-            <div className="learning-path-container" style={{ textAlign: 'center', padding: '4rem 1rem' }}>
-                <div className="spinner" style={{ margin: '0 auto' }}></div>
-                <p style={{ color: '#9ca3af', marginTop: '1rem' }}>Loading shared path…</p>
+            <div className="learning-path-container" style={{ textAlign: 'center', padding: '4rem 1rem' }} aria-busy="true">
+                <div className="spinner" style={{ margin: '0 auto' }} aria-hidden="true"></div>
+                <p role="status" style={{ color: '#9ca3af', marginTop: '1rem' }}>Loading shared path…</p>
             </div>
         );
     }
@@ -86,8 +91,9 @@ export default function SharePathPage({ pathId, user, onSignIn, onForked }) {
                             <button
                                 className="btn btn-secondary"
                                 onClick={async () => {
+                                    setExportError('');
                                     try { await downloadIcs(API_BASE, path.id); }
-                                    catch (err) { console.warn('Calendar export failed', err); }
+                                    catch (err) { console.warn('Calendar export failed', err); setExportError('Calendar export failed. Please try again.'); }
                                 }}
                                 title="Download an .ics calendar file with milestone reminders"
                                 style={{ whiteSpace: 'nowrap' }}
@@ -98,8 +104,9 @@ export default function SharePathPage({ pathId, user, onSignIn, onForked }) {
                             <button
                                 className="btn btn-secondary"
                                 onClick={async () => {
+                                    setExportError('');
                                     try { await downloadIcs(API_BASE, path.id, { studyBlocks: true }); }
-                                    catch (err) { console.warn('Calendar export failed', err); }
+                                    catch (err) { console.warn('Calendar export failed', err); setExportError('Calendar export failed. Please try again.'); }
                                 }}
                                 title="Download the calendar with a recurring weekly study block"
                                 style={{ whiteSpace: 'nowrap' }}
@@ -124,7 +131,7 @@ export default function SharePathPage({ pathId, user, onSignIn, onForked }) {
                         </div>
                     )}
                     <p className="path-description">{path.description}</p>
-                    {forkError && <p style={{ color: '#f87171', marginTop: '0.5rem' }}>{forkError}</p>}
+                    <LiveAlert message={forkError || exportError} className={null} icon="" style={{ color: '#f87171', marginTop: '0.5rem' }} />
                     <div className="path-meta">
                         <span className="badge badge-primary">{path.experience_level}</span>
                         <span className="meta-item">⏱️ {path.time_commitment}</span>
@@ -132,7 +139,14 @@ export default function SharePathPage({ pathId, user, onSignIn, onForked }) {
                         <span className="meta-item">✅ {completedCount}/{totalCount} completed</span>
                     </div>
                     <div className="progress-section">
-                        <div className="progress-bar">
+                        <div
+                            className="progress-bar"
+                            role="progressbar"
+                            aria-label="Path progress"
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={Math.round(progressPct)}
+                        >
                             <div className="progress-fill" style={{ width: `${progressPct}%` }}></div>
                         </div>
                         <span className="progress-text">{Math.round(progressPct)}% Complete</span>
@@ -149,24 +163,43 @@ export default function SharePathPage({ pathId, user, onSignIn, onForked }) {
                             className={`milestone-card glass-card fade-in ${milestone.completed ? 'completed' : ''}`}
                             style={{ animationDelay: `${index * 0.1}s` }}
                         >
-                            <div className="milestone-header" onClick={() => setExpandedMilestone(expandedMilestone === milestone.id ? null : milestone.id)}>
-                                <div className="milestone-number">
+                            {/* AP40 — was a <div onClick>, unreachable by keyboard; the title
+                                is now the disclosure button (same as LearningPath). */}
+                            <div className="milestone-header">
+                                <div className="milestone-number" aria-hidden="true">
                                     {milestone.completed ? '✓' : index + 1}
                                 </div>
                                 <div className="milestone-info">
-                                    <h3 className="milestone-title">{milestone.title}</h3>
+                                    <h3 className="milestone-title">
+                                        <button
+                                            type="button"
+                                            className="milestone-toggle"
+                                            aria-expanded={expandedMilestone === milestone.id}
+                                            aria-controls={`milestone-details-${milestone.id}`}
+                                            onClick={() => setExpandedMilestone(expandedMilestone === milestone.id ? null : milestone.id)}
+                                        >
+                                            <span className="sr-only">Milestone {index + 1}: </span>
+                                            {milestone.title}
+                                        </button>
+                                    </h3>
                                     <div className="milestone-meta">
                                         <span className="milestone-hours">⏱️ {milestone.estimated_hours}h</span>
                                         {milestone.completed && <span className="badge badge-success">Completed</span>}
                                     </div>
                                 </div>
-                                <button className="expand-button">
+                                <button
+                                    type="button"
+                                    className="expand-button"
+                                    tabIndex={-1}
+                                    aria-hidden="true"
+                                    onClick={() => setExpandedMilestone(expandedMilestone === milestone.id ? null : milestone.id)}
+                                >
                                     {expandedMilestone === milestone.id ? '▼' : '▶'}
                                 </button>
                             </div>
 
                             {expandedMilestone === milestone.id && (
-                                <div className="milestone-details">
+                                <div className="milestone-details" id={`milestone-details-${milestone.id}`}>
                                     <div className="milestone-description">
                                         <h4>What You'll Learn</h4>
                                         <p>{milestone.description}</p>

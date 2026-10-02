@@ -26,7 +26,7 @@ const PublicProfilePage = ({ userId, onBack }) => {
     if (notFound) {
         return (
             <div className="learning-path-container">
-                <div className="glass-card fade-in" style={{ padding: '2rem', textAlign: 'center' }}>
+                <div className="glass-card fade-in" style={{ padding: '2rem', textAlign: 'center' }} role="alert">
                     <h2>Profile unavailable</h2>
                     <p style={{ color: '#94a3b8' }}>
                         This profile is private or doesn’t exist.
@@ -42,7 +42,7 @@ const PublicProfilePage = ({ userId, onBack }) => {
     if (!stats) {
         return (
             <div className="learning-path-container">
-                <div className="glass-card fade-in" style={{ padding: '2rem', textAlign: 'center' }}>
+                <div className="glass-card fade-in" style={{ padding: '2rem', textAlign: 'center' }} role="status">
                     Loading…
                 </div>
             </div>

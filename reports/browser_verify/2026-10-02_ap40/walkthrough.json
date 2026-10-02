@@ -1,0 +1,196 @@
+{
+  "steps": [
+    {
+      "step": "Tab reaches \"Sign in\"",
+      "pass": true,
+      "detail": "Sign in"
+    },
+    {
+      "step": "focus ring visible on Sign in",
+      "pass": true,
+      "detail": "solid 3px rgb(252, 211, 77)"
+    },
+    {
+      "step": "login email field has focus (autoFocus)",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "step": "\"link sent\" is in a live status region",
+      "pass": true,
+      "detail": "Sign-in link sent to keyboard@ap40.dev."
+    },
+    {
+      "step": "magic link found in server log",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "step": "signed in (email shown in the auth bar)",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "step": "error live region exists BEFORE any error (persistent)",
+      "pass": true,
+      "detail": "count=1"
+    },
+    {
+      "step": "Tab reaches the goal field",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "step": "Tab reaches Generate",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "step": "failed generation is announced via role=alert",
+      "pass": true,
+      "detail": "⚠️ The AI generated an incomplete or invalid learning path. Please try again."
+    },
+    {
+      "step": "path generated (keyboard Enter on Generate)",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "step": "Tab reaches milestone 2 disclosure button",
+      "pass": true,
+      "detail": "Milestone 2: Working in Jupyter Notebooks"
+    },
+    {
+      "step": "focus ring visible on milestone toggle",
+      "pass": true,
+      "detail": "solid 3px rgb(252, 211, 77)"
+    },
+    {
+      "step": "Enter expands the milestone (aria-expanded=true)",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "step": "Space collapses it again",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "step": "Tab reaches \"Take quiz\"",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "step": "(1) on open, focus is inside the dialog",
+      "pass": true,
+      "detail": "{\"tag\":\"div\",\"id\":\"\",\"cls\":\"\",\"text\":\"✕Quick comprehension checkPass 70% to mark this milestone co\",\"role\":\"dialog\",\"outline\":\"solid 3px rgb(252, 211, 77)\",\"inDialog\":true}"
+    },
+    {
+      "step": "(2) aria-labelledby points at a real heading",
+      "pass": true,
+      "detail": "Quick comprehension check"
+    },
+    {
+      "step": "(3) Escape closes the dialog",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "step": "(4) focus returns to the \"Take quiz\" trigger",
+      "pass": true,
+      "detail": "🎯 Take quiz to complete"
+    },
+    {
+      "step": "(5) Tab/Shift+Tab x25 never leaves the dialog",
+      "pass": true,
+      "detail": "escaped=0"
+    },
+    {
+      "step": "radios answered by keyboard (Space / arrows)",
+      "pass": true,
+      "detail": "[0,1,2]"
+    },
+    {
+      "step": "Tab reaches Submit",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "step": "quiz submitted and passed",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "step": "Escape closes the result dialog",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "step": "after the milestone completes (trigger gone), focus lands on that milestone toggle",
+      "pass": true,
+      "detail": "Milestone 2: Working in Jupyter Notebooks"
+    },
+    {
+      "step": "Tab reaches an explore card",
+      "pass": true,
+      "detail": "Python for Data Analysis: From Zero to InsightA beginner pat"
+    },
+    {
+      "step": "Space on an explore card opens the shared path",
+      "pass": true,
+      "detail": "http://localhost:5174/share/6"
+    },
+    {
+      "step": "reduced motion: every animation is ~0s and runs once",
+      "pass": true,
+      "detail": "[{\"d\":\"1e-05s\",\"n\":\"1\",\"o\":\"1\"},{\"d\":\"1e-05s\",\"n\":\"1\",\"o\":\"1\"},{\"d\":\"1e-05s\",\"n\":\"1\",\"o\":\"1\"}]"
+    },
+    {
+      "step": "reduced motion: faded-in content still ends visible (opacity 1)",
+      "pass": true,
+      "detail": "1,1,1,1,1"
+    },
+    {
+      "step": "control: without the setting, animations keep their duration",
+      "pass": true,
+      "detail": "0.25s"
+    }
+  ],
+  "axe": [
+    {
+      "name": "landing",
+      "serious_critical_nodes": 0,
+      "violations": []
+    },
+    {
+      "name": "path",
+      "serious_critical_nodes": 0,
+      "violations": []
+    },
+    {
+      "name": "quiz_modal",
+      "serious_critical_nodes": 0,
+      "violations": []
+    },
+    {
+      "name": "path_with_completed_milestone",
+      "serious_critical_nodes": 0,
+      "violations": []
+    },
+    {
+      "name": "explore",
+      "serious_critical_nodes": 0,
+      "violations": []
+    },
+    {
+      "name": "share",
+      "serious_critical_nodes": 0,
+      "violations": []
+    },
+    {
+      "name": "public_profile",
+      "serious_critical_nodes": 0,
+      "violations": []
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import './LandingPage.css';
+import LiveAlert from './LiveAlert';
 
 // AP31 — relative by default, so the SPA and the API share an origin in
 // production and there is no build-time URL to get wrong. Local dev is
@@ -141,7 +142,7 @@ const LandingPage = ({ onPathGenerated, onExplore }) => {
                         Get personalized milestones, time estimates, and curated resources—all powered by AI.
                     </p>
 
-                    <form className="generation-form glass-card fade-in" onSubmit={handleSubmit}>
+                    <form className="generation-form glass-card fade-in" onSubmit={handleSubmit} aria-busy={isGenerating}>
                         <div className="input-group">
                             <label className="input-label" htmlFor="goal">
                                 What do you want to learn?
@@ -156,10 +157,11 @@ const LandingPage = ({ onPathGenerated, onExplore }) => {
                                 required
                                 minLength={GOAL_MIN_LENGTH}
                                 maxLength={GOAL_MAX_LENGTH}
+                                aria-describedby="goal-counter"
                                 disabled={isGenerating}
                             />
                             {/* AP34 — matches the server's max_length so a rejection never surprises the user */}
-                            <p className="input-char-counter">
+                            <p className="input-char-counter" id="goal-counter">
                                 {formData.goal.length}/{GOAL_MAX_LENGTH}
                             </p>
                         </div>
@@ -225,11 +227,18 @@ const LandingPage = ({ onPathGenerated, onExplore }) => {
                             </div>
                         </div>
 
-                        {error && (
-                            <div className="error-message">
-                                <span>⚠️ {error}</span>
-                            </div>
-                        )}
+                        {/* AP40 — announced, not only shown */}
+                        <LiveAlert message={error} />
+
+                        {/* AP40 — progress for screen readers: the visible spinner and the
+                            disabled controls say nothing on their own. */}
+                        <p role="status" className="sr-only">
+                            {isGenerating
+                                ? (streamedMilestones.length
+                                    ? `Building your path: ${streamedMilestones.length} milestone${streamedMilestones.length === 1 ? '' : 's'} so far.`
+                                    : 'Generating your learning path…')
+                                : ''}
+                        </p>
 
                         {/* Progressive milestone preview while streaming */}
                         {isGenerating && streamedMilestones.length > 0 && (
@@ -253,7 +262,7 @@ const LandingPage = ({ onPathGenerated, onExplore }) => {
                         >
                             {isGenerating ? (
                                 <>
-                                    <span className="spinner"></span>
+                                    <span className="spinner" aria-hidden="true"></span>
                                     <span style={{ marginLeft: '0.5rem' }}>Generating Your Path…</span>
                                 </>
                             ) : (

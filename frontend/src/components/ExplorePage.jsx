@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import './LearningPath.css';
 import './ExplorePage.css';
+import LiveAlert from './LiveAlert';
 
 // AP31 — relative by default, so the SPA and the API share an origin in
 // production and there is no build-time URL to get wrong. Local dev is
@@ -82,17 +83,13 @@ export default function ExplorePage({ onBack }) {
             </div>
 
             {loading && (
-                <div style={{ textAlign: 'center', padding: '4rem 1rem' }}>
-                    <div className="spinner" style={{ margin: '0 auto' }}></div>
-                    <p style={{ color: '#9ca3af', marginTop: '1rem' }}>Loading public paths…</p>
+                <div style={{ textAlign: 'center', padding: '4rem 1rem' }} aria-busy="true">
+                    <div className="spinner" style={{ margin: '0 auto' }} aria-hidden="true"></div>
+                    <p role="status" style={{ color: '#9ca3af', marginTop: '1rem' }}>Loading public paths…</p>
                 </div>
             )}
 
-            {error && (
-                <div className="error-message" style={{ margin: '2rem 0' }}>
-                    <span>⚠️ {error}</span>
-                </div>
-            )}
+            <LiveAlert message={error} style={{ margin: '2rem 0' }} />
 
             {!loading && !error && sortedCategories.length === 0 && (
                 <div className="glass-card fade-in" style={{ padding: '2rem', textAlign: 'center' }}>
@@ -127,7 +124,13 @@ export default function ExplorePage({ onBack }) {
                                         key={p.id}
                                         className="explore-card glass-card fade-in"
                                         onClick={() => openShared(p.id)}
-                                        onKeyDown={(e) => { if (e.key === 'Enter') openShared(p.id); }}
+                                        onKeyDown={(e) => {
+                                            // AP40 — role="button" owes Space as well as Enter
+                                            if (e.key === 'Enter' || e.key === ' ') {
+                                                e.preventDefault();
+                                                openShared(p.id);
+                                            }
+                                        }}
                                         role="button"
                                         tabIndex={0}
                                     >

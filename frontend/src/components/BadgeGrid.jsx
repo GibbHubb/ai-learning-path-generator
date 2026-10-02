@@ -47,7 +47,9 @@ const BadgeGrid = ({ stats }) => {
                                         border: `1px solid ${accent}`,
                                         borderRadius: '0.5rem',
                                         minWidth: '150px',
-                                        opacity: earned ? 1 : 0.55,
+                                        // AP40 — was 0.55: locked tiles' text fell to 2.88:1 (axe). The tier
+                                        // colour and the 'x / y' progress still mark a tile as locked.
+                                        opacity: earned ? 1 : 0.8,
                                     }}
                                 >
                                     <div style={{ fontWeight: 600, fontSize: '0.95rem', color: earned ? '#e2e8f0' : '#94a3b8' }}>

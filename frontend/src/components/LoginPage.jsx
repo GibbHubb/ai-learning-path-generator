@@ -7,6 +7,7 @@
 
 import React, { useState } from 'react';
 import { requestMagicLink } from '../services/auth';
+import LiveAlert from './LiveAlert';
 
 export default function LoginPage({ onBack }) {
   const [email, setEmail] = useState('');
@@ -32,6 +33,8 @@ export default function LoginPage({ onBack }) {
   return (
     <div className="login-page" style={pageStyle}>
       <div className="glass-card fade-in" style={cardStyle}>
+        {/* AP40 — the view swap below is not announced on its own */}
+        <p role="status" className="sr-only">{sent ? `Sign-in link sent to ${email}.` : ''}</p>
         {!sent ? (
           <>
             <h1 style={{ marginBottom: '0.5rem' }}>Sign in</h1>
@@ -39,9 +42,10 @@ export default function LoginPage({ onBack }) {
               We'll email you a one-tap sign-in link. No password needed.
             </p>
             <form onSubmit={handleSubmit}>
-              <label style={labelStyle}>
+              <label style={labelStyle} htmlFor="login-email">
                 Email
                 <input
+                  id="login-email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -52,7 +56,7 @@ export default function LoginPage({ onBack }) {
                   disabled={submitting}
                 />
               </label>
-              {error && <p style={errorStyle}>{error}</p>}
+              <LiveAlert message={error} className={null} icon="" style={errorStyle} />
               <button
                 type="submit"
                 className="btn btn-primary"

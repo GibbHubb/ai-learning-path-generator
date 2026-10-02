@@ -345,7 +345,7 @@
 .resource-type { font-size: 14px; }
 .resource-disclaimer {
     font-size: 10px;
-    color: #6b7280;
+    color: #9ca3af; /* AP40 — #6b7280 was 3.72:1 on the card (axe) */
     margin-top: 8px;
     font-style: italic;
 }
@@ -370,7 +370,7 @@
 }
 @keyframes pulse-streak {
     0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
+    50% { opacity: 0.9; } /* AP40 — 0.7 dipped the text to 4.0:1 mid-pulse (axe) */
 }
 /* AP5 — difficulty feedback panel */
 .feedback-panel {
@@ -423,4 +423,22 @@
     border-radius: 10px;
     margin-bottom: var(--spacing-md);
     font-weight: 700;
+}
+
+/* AP40 — the milestone title is the disclosure button (was a <div onClick>).
+   Reset the button chrome so it still reads as the heading it sits in. */
+.milestone-toggle {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}
+
+.milestone-card.completed .milestone-toggle {
+  text-decoration: line-through;
 }

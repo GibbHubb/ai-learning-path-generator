@@ -62,6 +62,11 @@ function App() {
 
     // AP9 — load current user on mount
     useEffect(() => {
+        // On the magic-link page the verify effect below sets the user itself.
+        // Fetching here too raced it: this request leaves before the session
+        // cookie exists, comes back "no user" AFTER the verify succeeded, and
+        // overwrote the signed-in user with null (found in AP40's keyboard pass).
+        if (isVerifyUrl()) return;
         getCurrentUser().then(setUser).catch(() => setUser(null));
     }, []);
 
@@ -218,11 +223,11 @@ function App() {
                     {verifyError ? (
                         <>
                             <h2>Sign-in failed</h2>
-                            <p style={{ color: '#f87171' }}>{verifyError}</p>
+                            <p role="alert" style={{ color: '#f87171' }}>{verifyError}</p>
                             <button className="btn btn-primary" onClick={handleSignIn} style={{ marginTop: '1rem' }}>Try again</button>
                         </>
                     ) : (
-                        <p>Signing you in…</p>
+                        <p role="status">Signing you in…</p>
                     )}
                 </div>
             </div>

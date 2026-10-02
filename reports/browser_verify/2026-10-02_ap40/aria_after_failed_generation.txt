@@ -1,0 +1,27 @@
+- text: What do you want to learn?
+- textbox "What do you want to learn?":
+  - /placeholder: e.g., Full-Stack Web Development, Machine Learning, Digital Marketing...
+  - text: FAILME please
+- paragraph: 13/2000
+- text: Experience Level
+- combobox "Experience Level":
+  - option "Beginner" [selected]
+  - option "Intermediate"
+  - option "Advanced"
+- text: Time Commitment
+- combobox "Time Commitment":
+  - option "1-5 hours/week"
+  - option "5-10 hours/week" [selected]
+  - option "10-20 hours/week"
+  - option "20+ hours/week"
+- text: Language
+- combobox "Language":
+  - option "English" [selected]
+  - option "Nederlands"
+  - option "Español"
+  - option "Français"
+  - option "Deutsch"
+  - option "Português"
+- alert: ⚠️ The AI generated an incomplete or invalid learning path. Please try again.
+- status
+- button "🚀 Generate Learning Path"

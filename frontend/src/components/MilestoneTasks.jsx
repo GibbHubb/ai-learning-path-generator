@@ -4,6 +4,7 @@
 // complete_milestone helper); un-ticking from all-done reverts.
 import React, { useState } from 'react';
 import axios from 'axios';
+import LiveAlert from './LiveAlert';
 
 // AP31 — relative by default, so the SPA and the API share an origin in
 // production and there is no build-time URL to get wrong. Local dev is
@@ -24,6 +25,8 @@ const MilestoneTasks = ({ milestoneId, initialTasks, signedIn, onSignIn, onMiles
     const [tasks, setTasks] = useState(initialTasks || []);
     const [newTitle, setNewTitle] = useState('');
     const [busy, setBusy] = useState(false);
+    // AP40 — add/toggle/delete failures used to reach console.warn only.
+    const [taskError, setTaskError] = useState('');
 
     if (!signedIn) {
         return (
@@ -44,6 +47,7 @@ const MilestoneTasks = ({ milestoneId, initialTasks, signedIn, onSignIn, onMiles
         const title = newTitle.trim();
         if (!title || busy) return;
         setBusy(true);
+        setTaskError('');
         try {
             const res = await axios.post(
                 `${API_BASE}/milestones/${milestoneId}/tasks`,
@@ -54,6 +58,7 @@ const MilestoneTasks = ({ milestoneId, initialTasks, signedIn, onSignIn, onMiles
             setNewTitle('');
         } catch (err) {
             console.warn('Failed to add task', err);
+            setTaskError('Could not add that sub-task. Please try again.');
         } finally {
             setBusy(false);
         }
@@ -62,6 +67,7 @@ const MilestoneTasks = ({ milestoneId, initialTasks, signedIn, onSignIn, onMiles
     const toggleTask = async (task) => {
         if (busy) return;
         setBusy(true);
+        setTaskError('');
         // Optimistic flip
         setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, completed: !t.completed } : t));
         try {
@@ -83,6 +89,7 @@ const MilestoneTasks = ({ milestoneId, initialTasks, signedIn, onSignIn, onMiles
             // Revert on failure
             setTasks((prev) => prev.map((t) => t.id === task.id ? task : t));
             console.warn('Failed to toggle task', err);
+            setTaskError('Could not update that sub-task. Please try again.');
         } finally {
             setBusy(false);
         }
@@ -91,6 +98,7 @@ const MilestoneTasks = ({ milestoneId, initialTasks, signedIn, onSignIn, onMiles
     const deleteTask = async (task) => {
         if (busy) return;
         setBusy(true);
+        setTaskError('');
         try {
             const res = await axios.delete(
                 `${API_BASE}/tasks/${task.id}`,
@@ -102,6 +110,7 @@ const MilestoneTasks = ({ milestoneId, initialTasks, signedIn, onSignIn, onMiles
             }
         } catch (err) {
             console.warn('Failed to delete task', err);
+            setTaskError('Could not delete that sub-task. Please try again.');
         } finally {
             setBusy(false);
         }
@@ -110,7 +119,7 @@ const MilestoneTasks = ({ milestoneId, initialTasks, signedIn, onSignIn, onMiles
     return (
         <div style={{ marginTop: '1rem', padding: '0.75rem', background: 'rgba(30, 41, 59, 0.4)', borderRadius: '0.5rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                <span style={{ fontSize: '0.85rem', color: '#cbd5e1', fontWeight: 600 }}>Sub-tasks</span>
+                <span style={{ fontSize: '0.85rem', color: '#cbd5e1', fontWeight: 600 }} id={`subtasks-label-${milestoneId}`}>Sub-tasks</span>
                 {totalCount > 0 && (
                     <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{doneCount}/{totalCount} done</span>
                 )}
@@ -129,14 +138,17 @@ const MilestoneTasks = ({ milestoneId, initialTasks, signedIn, onSignIn, onMiles
                         checked={!!t.completed}
                         onChange={() => toggleTask(t)}
                         disabled={busy}
+                        aria-label={`Done: ${t.title}`}
                         style={{ cursor: 'pointer' }}
                     />
                     <span style={{ flex: 1, fontSize: '0.9rem', color: t.completed ? '#64748b' : '#e2e8f0', textDecoration: t.completed ? 'line-through' : 'none' }}>
                         {t.title}
                     </span>
                     <button
+                        type="button"
                         onClick={() => deleteTask(t)}
                         title="Delete task"
+                        aria-label={`Delete sub-task: ${t.title}`}
                         style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.85rem', padding: '0.1rem 0.3rem' }}
                     >
                         ✕
@@ -144,10 +156,13 @@ const MilestoneTasks = ({ milestoneId, initialTasks, signedIn, onSignIn, onMiles
                 </div>
             ))}
 
+            <LiveAlert message={taskError} className={null} icon="" style={{ color: '#f87171', fontSize: '0.8rem', marginTop: '0.4rem' }} />
+
             <form onSubmit={addTask} style={{ display: 'flex', gap: '0.4rem', marginTop: '0.5rem' }}>
                 <input
                     type="text"
                     placeholder="Add a sub-task…"
+                    aria-label="New sub-task"
                     value={newTitle}
                     onChange={(e) => setNewTitle(e.target.value)}
                     style={inputStyle}

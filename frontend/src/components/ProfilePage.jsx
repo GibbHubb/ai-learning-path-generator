@@ -26,6 +26,7 @@ const ProfilePage = ({ user, onBack }) => {
     // AP30 — public profile opt-in
     const [isPublic, setIsPublic] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [actionError, setActionError] = useState('');
 
     useEffect(() => {
         axios
@@ -48,6 +49,7 @@ const ProfilePage = ({ user, onBack }) => {
 
     const handleTogglePublic = async () => {
         const next = !isPublic;
+        setActionError('');
         try {
             const res = await axios.patch(
                 `${API_BASE}/me/profile/visibility`,
@@ -57,6 +59,7 @@ const ProfilePage = ({ user, onBack }) => {
             setIsPublic(res.data.is_public_profile);
         } catch (err) {
             console.warn('Failed to update profile visibility', err);
+            setActionError('Could not change your profile visibility. Please try again.');
         }
     };
 
@@ -66,7 +69,8 @@ const ProfilePage = ({ user, onBack }) => {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch {
-            /* clipboard unavailable — no-op */
+            // Clipboard unavailable — AP40: say so instead of doing nothing.
+            setActionError('Could not copy the link. Select it above and copy it manually.');
         }
     };
 
@@ -74,7 +78,7 @@ const ProfilePage = ({ user, onBack }) => {
         return (
             <div className="learning-path-container">
                 <div className="glass-card fade-in" style={{ padding: '2rem', textAlign: 'center' }}>
-                    <p style={{ color: '#f87171' }}>{error}</p>
+                    <p role="alert" style={{ color: '#f87171' }}>{error}</p>
                     <button className="btn btn-secondary" onClick={onBack} style={{ marginTop: '1rem' }}>← Back</button>
                 </div>
             </div>
@@ -84,7 +88,7 @@ const ProfilePage = ({ user, onBack }) => {
     if (!stats) {
         return (
             <div className="learning-path-container">
-                <div className="glass-card fade-in" style={{ padding: '2rem', textAlign: 'center' }}>
+                <div className="glass-card fade-in" style={{ padding: '2rem', textAlign: 'center' }} role="status">
                     Loading…
                 </div>
             </div>
@@ -117,6 +121,7 @@ const ProfilePage = ({ user, onBack }) => {
                                 <input type="checkbox" checked={isPublic} onChange={handleTogglePublic} />
                                 Make my profile public
                             </label>
+                            <p role="alert" style={{ color: '#f87171', fontSize: '0.85rem', marginTop: actionError ? '0.5rem' : 0 }}>{actionError}</p>
                             {isPublic && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
                                     <code style={{ fontSize: '0.8rem', color: '#94a3b8', background: 'rgba(30,41,59,0.5)', padding: '0.3rem 0.5rem', borderRadius: '0.35rem' }}>

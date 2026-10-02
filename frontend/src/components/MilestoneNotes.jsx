@@ -74,8 +74,9 @@ export default function MilestoneNotes({ milestoneId, signedIn, onSignIn }) {
     return (
         <div className="milestone-notes" style={wrapStyle}>
             <div style={headerRow}>
-                <h4 style={{ margin: 0 }}>Your reflection</h4>
-                <span style={statusStyle(status)}>
+                <h4 style={{ margin: 0 }} id={`reflection-label-${milestoneId}`}>Your reflection</h4>
+                {/* AP40 — save state is announced; a failed save is an alert */}
+                <span style={statusStyle(status)} role={status === 'error' ? 'alert' : 'status'}>
                     {status === 'saving' && 'Saving…'}
                     {status === 'saved' && 'Saved ✓'}
                     {status === 'error' && 'Could not save'}
@@ -85,6 +86,7 @@ export default function MilestoneNotes({ milestoneId, signedIn, onSignIn }) {
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 onKeyDown={handleKeyDown}
+                aria-labelledby={`reflection-label-${milestoneId}`}
                 placeholder="What did you learn? What got you stuck? Anything you'd revisit?"
                 rows={4}
                 style={textareaStyle}
@@ -116,7 +118,7 @@ const textareaStyle = {
 };
 const footerRow = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', fontSize: '0.8rem', color: '#94a3b8' };
 const privateRow = { display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' };
-const shortcutHint = { color: '#64748b' };
+const shortcutHint = { color: '#94a3b8' }; // AP40 — #64748b failed AA contrast (axe)
 const hintStyle = { marginTop: '1rem' };
 const statusStyle = (s) => ({
     fontSize: '0.8rem',

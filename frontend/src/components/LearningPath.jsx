@@ -4,6 +4,7 @@ import { downloadMarkdown, downloadIcs } from '../utils/exportMarkdown';
 import MilestoneNotes from './MilestoneNotes';
 import MilestoneTasks from './MilestoneTasks';
 import QuizModal from './QuizModal';
+import LiveAlert from './LiveAlert';
 import './LearningPath.css';
 
 // AP31 — relative by default, so the SPA and the API share an origin in
@@ -40,6 +41,13 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
     const [revisions, setRevisions] = useState([]);
     const [revisionsLoaded, setRevisionsLoaded] = useState(false);
     const [restoring, setRestoring] = useState(false);
+    // AP40 — these actions used to fail into console.warn only: invisible to every
+    // user, sighted or not. One announced message for whichever failed last.
+    const [actionError, setActionError] = useState('');
+    const failed = (what, err) => {
+        console.warn(what, err);
+        setActionError(`${what}. Please try again.`);
+    };
 
     const openRevisions = async () => {
         const nowOpen = !revisionsOpen;
@@ -50,7 +58,7 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
                 setRevisions(res.data || []);
                 setRevisionsLoaded(true);
             } catch (err) {
-                console.warn('Failed to load revisions', err);
+                failed('Could not load the version history', err);
             }
         }
     };
@@ -58,6 +66,7 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
     const restoreRevision = async (revisionNumber) => {
         if (restoring) return;
         setRestoring(true);
+        setActionError('');
         try {
             const res = await axios.post(
                 `${API_BASE}/paths/${pathData.id}/revisions/${revisionNumber}/restore`,
@@ -73,7 +82,7 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
             setRevisionsLoaded(false);
             setRevisions([]);
         } catch (err) {
-            console.warn('Failed to restore revision', err);
+            failed('Could not restore that version', err);
         } finally {
             setRestoring(false);
         }
@@ -97,6 +106,7 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
     };
 
     const toggleComplete = async (milestone) => {
+        setActionError('');
         try {
             const wasCompleted = milestone.completed;
             const res = await axios.patch(`${API_BASE}/milestones/${milestone.id}`, {
@@ -120,7 +130,7 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
                 setFeedbackPromptId((current) => (current === milestone.id ? null : current));
             }
         } catch (error) {
-            console.error('Error updating milestone:', error);
+            failed('Could not update that milestone', error);
         }
     };
 
@@ -128,6 +138,7 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
     const submitFeedback = async (milestone, feedback) => {
         if (feedbackSubmitting) return;
         setFeedbackSubmitting(true);
+        setActionError('');
         try {
             const res = await axios.post(
                 `${API_BASE}/milestones/${milestone.id}/feedback`,
@@ -143,13 +154,14 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
             }
             setFeedbackPromptId(null);
         } catch (err) {
-            console.error('Feedback failed:', err);
+            failed('Could not send your feedback', err);
         } finally {
             setFeedbackSubmitting(false);
         }
     };
 
     const handleShare = async () => {
+        setActionError('');
         try {
             if (!isPublic) {
                 await axios.patch(`${API_BASE}/paths/${pathData.id}/share`, { is_public: true });
@@ -160,7 +172,7 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
-            console.error('Share failed:', err);
+            failed('Could not share this path', err);
         }
     };
 
@@ -181,13 +193,13 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
                     milestoneId={quizForMilestoneId}
                     onClose={() => setQuizForMilestoneId(null)}
                     onPassed={handleQuizPassed}
+                    returnFocusId={`milestone-toggle-${quizForMilestoneId}`}
                 />
             )}
-            {pathAdjustedFlash && (
-                <div className="path-adjusted-flash glass-card fade-in">
-                    ✨ Path adjusted!
-                </div>
-            )}
+            {/* AP40 — role=status so the adjustment is announced, not only flashed */}
+            <div role="status" className={pathAdjustedFlash ? 'path-adjusted-flash glass-card fade-in' : undefined}>
+                {pathAdjustedFlash ? '✨ Path adjusted!' : ''}
+            </div>
             <div className="path-header glass-card fade-in">
                 <button className="btn btn-secondary back-button" onClick={onBack}>
                     ← Back
@@ -217,7 +229,14 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
                     </div>
 
                     <div className="progress-section">
-                        <div className="progress-bar">
+                        <div
+                            className="progress-bar"
+                            role="progressbar"
+                            aria-label="Path progress"
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={Math.round(progressPercentage)}
+                        >
                             <div
                                 className="progress-fill"
                                 style={{ width: `${progressPercentage}%` }}
@@ -225,6 +244,8 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
                         </div>
                         <span className="progress-text">{Math.round(progressPercentage)}% Complete</span>
                     </div>
+
+                    <LiveAlert message={actionError} style={{ marginTop: '0.75rem' }} />
 
                     {/* AP2 — Share + Export buttons */}
                     <div className="path-actions">
@@ -238,8 +259,9 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
                         <button
                             className="btn btn-secondary"
                             onClick={async () => {
+                                setActionError('');
                                 try { await downloadIcs(API_BASE, pathData.id); }
-                                catch (err) { console.warn('Calendar export failed', err); }
+                                catch (err) { failed('Calendar export failed', err); }
                             }}
                             title="Download an .ics calendar file with milestone reminders"
                         >
@@ -249,8 +271,9 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
                         <button
                             className="btn btn-secondary"
                             onClick={async () => {
+                                setActionError('');
                                 try { await downloadIcs(API_BASE, pathData.id, { studyBlocks: true }); }
-                                catch (err) { console.warn('Calendar export failed', err); }
+                                catch (err) { failed('Calendar export failed', err); }
                             }}
                             title="Download the calendar with a recurring weekly study block"
                         >
@@ -258,7 +281,7 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
                         </button>
                         {/* AP24 — version history (owner only) */}
                         {user && (
-                            <button className="btn btn-secondary" onClick={openRevisions}>
+                            <button className="btn btn-secondary" onClick={openRevisions} aria-expanded={revisionsOpen}>
                                 🕰 Versions
                             </button>
                         )}
@@ -271,7 +294,7 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
                                 Version history (newest first)
                             </div>
                             {revisions.length === 0 && (
-                                <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+                                <div role="status" style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
                                     {revisionsLoaded ? 'No revisions yet.' : 'Loading…'}
                                 </div>
                             )}
@@ -309,13 +332,27 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
                             className={`milestone-card glass-card fade-in ${milestone.completed ? 'completed' : ''}`}
                             style={{ animationDelay: `${index * 0.1}s` }}
                         >
-                            <div className="milestone-header" onClick={() => toggleMilestone(milestone.id)}>
-                                <div className="milestone-number">
+                            {/* AP40 — the header used to be a <div onClick>: unreachable by
+                                keyboard. The title is now the disclosure button. */}
+                            <div className="milestone-header">
+                                <div className="milestone-number" aria-hidden="true">
                                     {milestone.completed ? '✓' : index + 1}
                                 </div>
 
                                 <div className="milestone-info">
-                                    <h3 className="milestone-title">{milestone.title}</h3>
+                                    <h3 className="milestone-title">
+                                        <button
+                                            type="button"
+                                            className="milestone-toggle"
+                                            id={`milestone-toggle-${milestone.id}`}
+                                            aria-expanded={expandedMilestone === milestone.id}
+                                            aria-controls={`milestone-details-${milestone.id}`}
+                                            onClick={() => toggleMilestone(milestone.id)}
+                                        >
+                                            <span className="sr-only">Milestone {index + 1}: </span>
+                                            {milestone.title}
+                                        </button>
+                                    </h3>
                                     <div className="milestone-meta">
                                         <span className="milestone-hours">⏱️ {milestone.estimated_hours}h</span>
                                         {milestone.completed && (
@@ -326,18 +363,26 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
 
                                 <div className="milestone-actions">
                                     <button
+                                        type="button"
                                         className="checkbox-button"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            toggleComplete(milestone);
-                                        }}
+                                        aria-pressed={!!milestone.completed}
+                                        aria-label={`Mark "${milestone.title}" complete`}
+                                        onClick={() => toggleComplete(milestone)}
                                     >
-                                        <div className={`checkbox ${milestone.completed ? 'checked' : ''}`}>
+                                        <span className={`checkbox ${milestone.completed ? 'checked' : ''}`} aria-hidden="true">
                                             {milestone.completed && '✓'}
-                                        </div>
+                                        </span>
                                     </button>
 
-                                    <button className="expand-button">
+                                    {/* Pointer convenience only: the title button above is the
+                                        keyboard/AT control, so this one stays out of the tab order. */}
+                                    <button
+                                        type="button"
+                                        className="expand-button"
+                                        tabIndex={-1}
+                                        aria-hidden="true"
+                                        onClick={() => toggleMilestone(milestone.id)}
+                                    >
                                         {expandedMilestone === milestone.id ? '▼' : '▶'}
                                     </button>
                                 </div>
@@ -346,26 +391,26 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
                             {/* AP5 — inline difficulty-feedback panel after completion */}
                             {feedbackPromptId === milestone.id && milestone.completed && (
                                 <div className="feedback-panel fade-in">
-                                    <p className="feedback-prompt">How was this milestone?</p>
-                                    <div className="feedback-actions">
+                                    <p className="feedback-prompt" id={`feedback-q-${milestone.id}`}>How was this milestone?</p>
+                                    <div className="feedback-actions" role="group" aria-labelledby={`feedback-q-${milestone.id}`}>
                                         <button
                                             className="btn btn-feedback"
                                             disabled={feedbackSubmitting}
-                                            onClick={(e) => { e.stopPropagation(); submitFeedback(milestone, 'too_easy'); }}
+                                            onClick={() => submitFeedback(milestone, 'too_easy')}
                                         >
                                             😴 Too easy
                                         </button>
                                         <button
                                             className="btn btn-feedback"
                                             disabled={feedbackSubmitting}
-                                            onClick={(e) => { e.stopPropagation(); submitFeedback(milestone, 'just_right'); }}
+                                            onClick={() => submitFeedback(milestone, 'just_right')}
                                         >
                                             👍 Just right
                                         </button>
                                         <button
                                             className="btn btn-feedback"
                                             disabled={feedbackSubmitting}
-                                            onClick={(e) => { e.stopPropagation(); submitFeedback(milestone, 'too_hard'); }}
+                                            onClick={() => submitFeedback(milestone, 'too_hard')}
                                         >
                                             🥵 Too hard
                                         </button>
@@ -374,7 +419,7 @@ const LearningPath = ({ pathData, onBack, onRefresh, user, onSignIn }) => {
                             )}
 
                             {expandedMilestone === milestone.id && (
-                                <div className="milestone-details">
+                                <div className="milestone-details" id={`milestone-details-${milestone.id}`}>
                                     <div className="milestone-description">
                                         <h4>What You'll Learn</h4>
                                         <p>{milestone.description}</p>

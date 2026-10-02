@@ -3,12 +3,14 @@
 
 import React, { useEffect, useState } from 'react';
 import { fetchMyPaths, setReminderOptIn } from '../services/auth';
+import LiveAlert from './LiveAlert';
 
 export default function MyPathsPage({ user, onUserUpdate, onPick, onBack }) {
   const [paths, setPaths] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reminderBusy, setReminderBusy] = useState(false);
+  const [reminderError, setReminderError] = useState('');
   const reminderOn = !!user?.reminder_opt_in;
 
   useEffect(() => {
@@ -26,10 +28,14 @@ export default function MyPathsPage({ user, onUserUpdate, onPick, onBack }) {
 
   const toggleReminder = async () => {
     setReminderBusy(true);
+    setReminderError('');
     try {
       const updated = await setReminderOptIn(!reminderOn);
       if (onUserUpdate) onUserUpdate(updated);
-    } catch { /* swallow — toggle stays in current state */ }
+    } catch {
+      // Toggle stays in its current state — AP40: and now the user is told why.
+      setReminderError('Could not change your reminder setting. Please try again.');
+    }
     finally { setReminderBusy(false); }
   };
 
@@ -66,8 +72,9 @@ export default function MyPathsPage({ user, onUserUpdate, onPick, onBack }) {
         </div>
       )}
 
-      {loading && <p style={{ color: '#94a3b8' }}>Loading…</p>}
-      {error && <p style={{ color: '#f87171' }}>{error}</p>}
+      <LiveAlert message={reminderError} className={null} icon="" style={{ color: '#f87171', marginBottom: '1rem' }} />
+      {loading && <p role="status" style={{ color: '#94a3b8' }}>Loading…</p>}
+      <LiveAlert message={error} className={null} icon="" style={{ color: '#f87171' }} />
 
       {!loading && !error && paths.length === 0 && (
         <p style={{ color: '#94a3b8' }}>
