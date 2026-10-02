@@ -1,0 +1,93 @@
+# AP41 — the suite runs on every push and PR, on the engine production runs.
+#
+# Two backend legs over ONE test suite:
+#   postgres — the engine the deployed app runs (Supabase). This is the leg that
+#              matters; before AP41 the suite had only ever run on SQLite.
+#   sqlite   — the local-dev engine, kept so the two results stay comparable.
+#
+# No API key is set anywhere in this workflow, on purpose: every test mocks the
+# model provider, and a test that accidentally reached a live provider fails
+# here instead of quietly spending quota.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    name: backend (${{ matrix.db }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        db: [postgres, sqlite]
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Read ONLY by backend/tests/conftest.py, which refuses any non-local host.
+      TEST_DATABASE_URL: ${{ matrix.db == 'postgres' && 'postgresql://postgres:ci@localhost:5432/ci' || '' }}
+      # The floor for the collected-test count. A suite that silently collects
+      # fewer tests reads exactly like a suite that passed. Raise it when you add
+      # tests; never lower it to make a red build green.
+      MIN_TESTS: 356
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install
+        run: pip install -r requirements-dev.txt
+
+      - name: Speed up the throwaway database
+        if: matrix.db == 'postgres'
+        # Every test drops and recreates every table; with fsync on that is
+        # dominated by disk syncs. Safe: this database lives for one job.
+        run: |
+          psql "$TEST_DATABASE_URL" -c "ALTER SYSTEM SET fsync = off" \
+            -c "ALTER SYSTEM SET synchronous_commit = off" \
+            -c "ALTER SYSTEM SET full_page_writes = off" \
+            -c "SELECT pg_reload_conf()"
+
+      - name: Collected-count floor
+        run: |
+          out=$(python -m pytest backend/tests --collect-only -q -p no:cacheprovider)
+          n=$(printf '%s\n' "$out" | grep -oE '^[0-9]+ tests? collected' | grep -oE '^[0-9]+')
+          echo "collected: ${n:-0} (floor: $MIN_TESTS)"
+          if [ -z "$n" ] || [ "$n" -lt "$MIN_TESTS" ]; then
+            echo "::error::collected ${n:-0} tests, below the floor of $MIN_TESTS"
+            exit 1
+          fi
+
+      - name: Test (${{ matrix.db }})
+        run: python -m pytest backend/tests -q -p no:cacheprovider -rs -W ignore::DeprecationWarning
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build

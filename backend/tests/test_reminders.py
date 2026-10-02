@@ -16,6 +16,7 @@ os.environ.pop("RESEND_API_KEY", None)
 os.environ["SECRET_KEY"] = "ap11-test-secret"
 
 from database import Base, engine, SessionLocal  # noqa: E402
+from conftest import peek  # noqa: E402  AP41 — closes its session
 import auth as auth_module  # noqa: E402
 from main import app  # noqa: E402
 from models import LearningPath, Milestone, ReminderLog, User  # noqa: E402
@@ -202,7 +203,7 @@ def test_toggle_endpoint_requires_auth(client):
 
 def test_toggle_flips_opt_in_and_resets_streak(client, captured_tokens):
     _sign_in(client, captured_tokens, "tog@a.dev")
-    user_id = SessionLocal().query(User).filter(User.email == "tog@a.dev").first().id
+    user_id = peek(lambda db: db.query(User).filter(User.email == "tog@a.dev").first().id)
 
     # Pretend the user was already in 5-strikes-deep silence
     db = SessionLocal()
@@ -216,7 +217,7 @@ def test_toggle_flips_opt_in_and_resets_streak(client, captured_tokens):
     assert body["reminder_opt_in"] is True
 
     # Re-fetch from DB — counter should be reset by the toggle
-    fresh = SessionLocal().query(User).filter(User.id == user_id).first()
+    fresh = peek(lambda db: db.query(User).filter(User.id == user_id).first())
     assert fresh.reminder_opt_in is True
     assert fresh.no_activity_reminders_sent == 0
 
@@ -226,7 +227,7 @@ def test_unsubscribe_endpoint_disables_reminders(client):
     token = make_unsubscribe_token(user_id)
     res = client.get(f"/api/unsubscribe?token={token}")
     assert res.status_code == 200
-    fresh = SessionLocal().query(User).filter(User.id == user_id).first()
+    fresh = peek(lambda db: db.query(User).filter(User.id == user_id).first())
     assert fresh.reminder_opt_in is False
 
 
@@ -237,7 +238,7 @@ def test_unsubscribe_rejects_bad_token(client):
 
 def test_milestone_complete_resets_inactivity_counter(client, captured_tokens):
     _sign_in(client, captured_tokens, "ap4@a.dev")
-    user_id = SessionLocal().query(User).filter(User.email == "ap4@a.dev").first().id
+    user_id = peek(lambda db: db.query(User).filter(User.email == "ap4@a.dev").first().id)
     # Seed a path owned by this user with one milestone + a non-zero counter
     db = SessionLocal()
     user = db.query(User).filter(User.id == user_id).first()
@@ -255,5 +256,5 @@ def test_milestone_complete_resets_inactivity_counter(client, captured_tokens):
 
     res = client.patch(f"/api/milestones/{m_id}", json={"completed": True})
     assert res.status_code == 200
-    fresh = SessionLocal().query(User).filter(User.id == user_id).first()
+    fresh = peek(lambda db: db.query(User).filter(User.id == user_id).first())
     assert fresh.no_activity_reminders_sent == 0

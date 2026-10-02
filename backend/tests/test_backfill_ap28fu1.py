@@ -34,13 +34,16 @@ def _make_path(db, *, language, title, created_at=None, milestones=2):
             order=i, estimated_hours=1.0, resources="[]", completed=False,
         ))
     db.commit()
-    db.refresh(p)
+    # AP41 — no refresh: it re-opened a transaction and kept the app's ONE pooled
+    # Postgres connection checked out while bf.main() needed it (pool timeout).
     return p
 
 
 @pytest.fixture
 def db():
-    s = SessionLocal()
+    # expire_on_commit=False so the seeded rows stay readable after their commit
+    # without re-checking-out a connection (see _make_path).
+    s = SessionLocal(expire_on_commit=False)
     try:
         yield s
     finally:

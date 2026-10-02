@@ -4,7 +4,7 @@
 
 A learning path generator that helps users master complex skills by breaking them down into structured milestones with personalized resources, time estimates, and progress tracking.
 
-![FastAPI](https://img.shields.io/badge/FastAPI-0.115.0-green) ![React](https://img.shields.io/badge/React-18.3-blue) ![License](https://img.shields.io/badge/license-MIT-green)
+[![CI](https://github.com/GibbHubb/ai-learning-path-generator/actions/workflows/ci.yml/badge.svg)](https://github.com/GibbHubb/ai-learning-path-generator/actions/workflows/ci.yml) ![FastAPI](https://img.shields.io/badge/FastAPI-0.115.0-green) ![React](https://img.shields.io/badge/React-18.3-blue) ![License](https://img.shields.io/badge/license-MIT-green)
 
 ## Table of Contents
 
@@ -191,6 +191,35 @@ npm run dev
 ```
 http://localhost:5173
 ```
+
+## Tests and CI
+
+Every push and pull request runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml):
+
+| Job | Engine | What it runs |
+|---|---|---|
+| `backend (postgres)` | **Postgres 17** service container, the engine production runs | `pytest backend/tests` |
+| `backend (sqlite)` | SQLite file, the local-dev default | the same suite, so the two legs are comparable |
+| `frontend` | none | `npm ci && npm run build` |
+
+Each backend leg first checks the **collected** test count against a floor (`MIN_TESTS` in the
+workflow), because a suite that silently collects fewer tests looks exactly like one that passed.
+No API key is set in CI: every test mocks the model provider.
+
+Locally:
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest backend/tests -q                       # SQLite (default)
+
+# Postgres, the production engine: a throwaway local container
+docker run -d --name ap-test-pg -e POSTGRES_PASSWORD=pw -p 55441:5432 postgres:17-alpine
+TEST_DATABASE_URL=postgresql://postgres:pw@127.0.0.1:55441/postgres python -m pytest backend/tests -q
+```
+
+The suite reads `TEST_DATABASE_URL`, never `DATABASE_URL`, and refuses any host that is not
+`localhost`/`127.0.0.1`: it drops every table before every test, so it must never be able to reach
+a real database.
 
 ## Usage
 

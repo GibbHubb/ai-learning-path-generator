@@ -48,3 +48,7 @@ Thumbs.db
 # Logs
 logs/
 *.log
+
+# AP41 — captured stdout from manual test runs; CI is the record now
+test_output.txt
+test_result.txt

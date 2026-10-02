@@ -15,6 +15,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.pop("RESEND_API_KEY", None)
 
 from database import Base, engine, SessionLocal  # noqa: E402
+from conftest import peek  # noqa: E402  AP41 — closes its session
 import auth as auth_module  # noqa: E402
 import quizzes as quizzes_module  # noqa: E402
 from main import app  # noqa: E402
@@ -163,7 +164,7 @@ def test_get_quiz_requires_auth(client):
 
 def test_get_quiz_generates_on_miss(client, captured_tokens, stub_claude):
     _sign_in(client, captured_tokens, "u@a.dev")
-    user_id = SessionLocal().query(User).filter(User.email == "u@a.dev").first().id
+    user_id = peek(lambda db: db.query(User).filter(User.email == "u@a.dev").first().id)
     _, m_id = _make_path_with_milestone(owner_id=user_id)
 
     res = client.get(f"/api/milestones/{m_id}/quiz")
@@ -172,24 +173,24 @@ def test_get_quiz_generates_on_miss(client, captured_tokens, stub_claude):
     assert body["milestone_id"] == m_id
     assert len(body["questions"]) == 3
     # Cache row exists
-    assert SessionLocal().query(MilestoneQuiz).filter(MilestoneQuiz.milestone_id == m_id).count() == 1
+    assert peek(lambda db: db.query(MilestoneQuiz).filter(MilestoneQuiz.milestone_id == m_id).count()) == 1
 
 
 def test_get_quiz_returns_cached_on_repeat(client, captured_tokens, stub_claude):
     _sign_in(client, captured_tokens, "u@a.dev")
-    user_id = SessionLocal().query(User).filter(User.email == "u@a.dev").first().id
+    user_id = peek(lambda db: db.query(User).filter(User.email == "u@a.dev").first().id)
     _, m_id = _make_path_with_milestone(owner_id=user_id)
 
     client.get(f"/api/milestones/{m_id}/quiz")
-    first_count = SessionLocal().query(MilestoneQuiz).count()
+    first_count = peek(lambda db: db.query(MilestoneQuiz).count())
     client.get(f"/api/milestones/{m_id}/quiz")
-    second_count = SessionLocal().query(MilestoneQuiz).count()
+    second_count = peek(lambda db: db.query(MilestoneQuiz).count())
     assert first_count == second_count == 1
 
 
 def test_get_quiz_refuses_short_milestone(client, captured_tokens, stub_claude):
     _sign_in(client, captured_tokens, "u@a.dev")
-    user_id = SessionLocal().query(User).filter(User.email == "u@a.dev").first().id
+    user_id = peek(lambda db: db.query(User).filter(User.email == "u@a.dev").first().id)
     _, m_id = _make_path_with_milestone(owner_id=user_id, body="too short")
     res = client.get(f"/api/milestones/{m_id}/quiz")
     assert res.status_code == 422
@@ -197,7 +198,7 @@ def test_get_quiz_refuses_short_milestone(client, captured_tokens, stub_claude):
 
 def test_regenerate_rate_limited(client, captured_tokens, stub_claude):
     _sign_in(client, captured_tokens, "u@a.dev")
-    user_id = SessionLocal().query(User).filter(User.email == "u@a.dev").first().id
+    user_id = peek(lambda db: db.query(User).filter(User.email == "u@a.dev").first().id)
     _, m_id = _make_path_with_milestone(owner_id=user_id)
 
     client.get(f"/api/milestones/{m_id}/quiz")  # initial generate
@@ -207,7 +208,7 @@ def test_regenerate_rate_limited(client, captured_tokens, stub_claude):
 
 def test_attempt_passing_marks_milestone_complete_and_fires_xp(client, captured_tokens, stub_claude):
     _sign_in(client, captured_tokens, "u@a.dev")
-    user_id = SessionLocal().query(User).filter(User.email == "u@a.dev").first().id
+    user_id = peek(lambda db: db.query(User).filter(User.email == "u@a.dev").first().id)
     _, m_id = _make_path_with_milestone(owner_id=user_id)
 
     client.get(f"/api/milestones/{m_id}/quiz")
@@ -218,13 +219,13 @@ def test_attempt_passing_marks_milestone_complete_and_fires_xp(client, captured_
     assert body["milestone_completed"] is True
     assert body["total_xp"] == 10  # one milestone × 10 XP
 
-    fresh = SessionLocal().query(Milestone).filter(Milestone.id == m_id).first()
+    fresh = peek(lambda db: db.query(Milestone).filter(Milestone.id == m_id).first())
     assert fresh.completed is True
 
 
 def test_attempt_failing_does_not_complete(client, captured_tokens, stub_claude):
     _sign_in(client, captured_tokens, "u@a.dev")
-    user_id = SessionLocal().query(User).filter(User.email == "u@a.dev").first().id
+    user_id = peek(lambda db: db.query(User).filter(User.email == "u@a.dev").first().id)
     _, m_id = _make_path_with_milestone(owner_id=user_id)
 
     client.get(f"/api/milestones/{m_id}/quiz")
@@ -232,13 +233,13 @@ def test_attempt_failing_does_not_complete(client, captured_tokens, stub_claude)
     body = res.json()
     assert body["passed"] is False
     assert body["milestone_completed"] is False
-    fresh = SessionLocal().query(Milestone).filter(Milestone.id == m_id).first()
+    fresh = peek(lambda db: db.query(Milestone).filter(Milestone.id == m_id).first())
     assert fresh.completed is False
 
 
 def test_attempt_logs_audit_row(client, captured_tokens, stub_claude):
     _sign_in(client, captured_tokens, "u@a.dev")
-    user_id = SessionLocal().query(User).filter(User.email == "u@a.dev").first().id
+    user_id = peek(lambda db: db.query(User).filter(User.email == "u@a.dev").first().id)
     _, m_id = _make_path_with_milestone(owner_id=user_id)
 
     client.get(f"/api/milestones/{m_id}/quiz")
@@ -256,7 +257,7 @@ def test_attempt_logs_audit_row(client, captured_tokens, stub_claude):
 
 def test_attempt_404_when_no_quiz(client, captured_tokens):
     _sign_in(client, captured_tokens, "u@a.dev")
-    user_id = SessionLocal().query(User).filter(User.email == "u@a.dev").first().id
+    user_id = peek(lambda db: db.query(User).filter(User.email == "u@a.dev").first().id)
     _, m_id = _make_path_with_milestone(owner_id=user_id)
 
     res = client.post(f"/api/milestones/{m_id}/quiz/attempt", json={"answers": [0]})

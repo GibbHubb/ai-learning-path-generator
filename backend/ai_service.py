@@ -513,7 +513,6 @@ def enrich_milestone_resources(milestone_id: int, title: str, description: str, 
         logger.warning("no AI provider key set (GEMINI_API_KEY) — skipping resource enrichment")
         return
 
-    from database import SessionLocal
     from models import Milestone
 
     prompt = build_enrichment_prompt(title, description, goal, language)
@@ -526,7 +525,13 @@ def enrich_milestone_resources(milestone_id: int, title: str, description: str, 
             logger.warning(f"Enrichment for milestone {milestone_id}: expected list, got {type(parsed)}")
             return
 
-        db = SessionLocal()
+        # AP41 — isolated_session(), not SessionLocal(): on Postgres the app's
+        # pool is ONE connection (database.py). backfill_enrichment.main() holds
+        # that connection open while it calls this function per milestone, so a
+        # SessionLocal() here waited out the 30s pool timeout and every
+        # milestone "failed" (swallowed below as a warning). SQLite has no pool
+        # cap, so it never showed; test_ai_service_ap41.py pins it on Postgres.
+        db = isolated_session()
         try:
             m = db.query(Milestone).filter(Milestone.id == milestone_id).first()
             if m:

@@ -643,6 +643,14 @@ async def generate_stream(
             db.rollback()
             logger.error(f"Error in stream endpoint: {e}")
             yield f"event: error\ndata: {json.dumps({'detail': llm.user_message(e)})}\n\n"
+        finally:
+            # AP41 — get_db()'s own close runs BEFORE a StreamingResponse body is
+            # iterated (FastAPI >= 0.106), so this generator re-opens the session
+            # and nothing closed it again: the connection stayed checked out until
+            # garbage collection. On Postgres the app's pool is ONE connection
+            # (database.py), so the NEXT request waited out the 30s pool timeout.
+            # Found by the first run of the suite on Postgres; SQLite has no cap.
+            db.close()
 
     return StreamingResponse(
         event_generator(),

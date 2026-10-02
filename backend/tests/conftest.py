@@ -31,13 +31,70 @@ if BACKEND_DIR not in sys.path:
 
 # One database for the whole suite. Must be set before `database` is imported.
 TEST_DB_PATH = os.path.join(BACKEND_DIR, "test_suite.db")
-os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH.replace(os.sep, '/')}"
+
+# AP41 — the suite can run against Postgres, the engine production runs.
+#
+# It reads TEST_DATABASE_URL, deliberately NOT DATABASE_URL: the autouse
+# fixture below drops every table before every test, so a suite that picked up
+# an exported DATABASE_URL (the production Supabase URL, say) would wipe it.
+# A separate variable means only an explicit choice reaches a server — and the
+# host guard means even an explicit choice can only reach this machine.
+_TEST_DB_URL = os.environ.get("TEST_DATABASE_URL", "").strip()
+_LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
+
+
+def _assert_local(url: str) -> None:
+    from urllib.parse import urlsplit
+
+    from urllib.parse import parse_qs
+
+    parts = urlsplit(url)
+    host = parts.hostname or ""
+    # libpq lets the query string override the host (`?host=`, `?hostaddr=`) or
+    # pull it from a service file (`?service=`): `postgresql://localhost/x?host=
+    # db.supabase.co` would pass a hostname-only check and then be wiped.
+    overrides = {"host", "hostaddr", "service"} & {k.lower() for k in parse_qs(parts.query)}
+    if overrides:
+        raise RuntimeError(
+            f"TEST_DATABASE_URL sets {sorted(overrides)} in its query string, which can "
+            "point the connection anywhere. Put the host in the URL itself."
+        )
+    if host not in _LOCAL_HOSTS:
+        raise RuntimeError(
+            f"TEST_DATABASE_URL points at {host!r}. The suite drops every table "
+            "before every test, so it only runs against a local database "
+            f"({', '.join(sorted(_LOCAL_HOSTS))})."
+        )
+
+
+if _TEST_DB_URL:
+    _assert_local(_TEST_DB_URL)
+    os.environ["DATABASE_URL"] = _TEST_DB_URL
+else:
+    os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH.replace(os.sep, '/')}"
 
 # No test may reach the real email provider — force the console-log fallback.
 os.environ.pop("RESEND_API_KEY", None)
 
 import pytest  # noqa: E402
 from database import Base, engine  # noqa: E402
+
+
+def peek(fn):
+    """Run `fn(session)` on a short-lived session and CLOSE it.
+
+    AP41 — tests used to write `SessionLocal().query(...)` inline. On SQLite the
+    leaked session is harmless; on Postgres the app's pool is ONE connection
+    (database.py, the production setting), so the leaked session held it and
+    the next request the test made waited out the 30s pool timeout.
+    """
+    from database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        return fn(db)
+    finally:
+        db.close()
 
 
 @pytest.fixture(autouse=True)

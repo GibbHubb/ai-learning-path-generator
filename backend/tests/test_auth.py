@@ -138,6 +138,11 @@ def test_paths_me_returns_only_user_paths(client, captured_tokens):
     db = SessionLocal()
     try:
         u1 = db.query(User).filter(User.email == "u1@example.com").first()
+        # AP41 — a REAL second user: the old `u1.id + 9999` only worked on SQLite,
+        # which does not enforce foreign keys. Postgres rejects the insert.
+        u2 = User(email="u2@example.com")
+        db.add(u2)
+        db.flush()
         # Direct insert two paths — one for u1, one for someone else
         db.add(LearningPath(
             title="u1's path", description="x", experience_level="beginner",
@@ -145,7 +150,7 @@ def test_paths_me_returns_only_user_paths(client, captured_tokens):
         ))
         db.add(LearningPath(
             title="u2's path", description="x", experience_level="beginner",
-            time_commitment="5h", user_id=u1.id + 9999,  # not u1
+            time_commitment="5h", user_id=u2.id,  # not u1
         ))
         db.commit()
     finally:

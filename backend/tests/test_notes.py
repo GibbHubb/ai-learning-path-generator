@@ -10,6 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.pop("RESEND_API_KEY", None)
 
 from database import Base, engine, SessionLocal  # noqa: E402
+from conftest import peek  # noqa: E402  AP41 — closes its session
 import auth as auth_module  # noqa: E402
 from main import app  # noqa: E402
 from models import LearningPath, Milestone, MilestoneNote, User  # noqa: E402
@@ -111,7 +112,7 @@ def test_get_note_requires_auth(client):
 
 def test_upsert_creates_note_and_computes_flag(client, captured_tokens):
     _sign_in(client, captured_tokens, "user@finly.dev")
-    user_id = SessionLocal().query(User).filter(User.email == "user@finly.dev").first().id
+    user_id = peek(lambda db: db.query(User).filter(User.email == "user@finly.dev").first().id)
     _, m_id = _seed_path(user_id=user_id)
 
     res = client.put(
@@ -127,7 +128,7 @@ def test_upsert_creates_note_and_computes_flag(client, captured_tokens):
 
 def test_upsert_updates_existing_note(client, captured_tokens):
     _sign_in(client, captured_tokens, "user@finly.dev")
-    user_id = SessionLocal().query(User).filter(User.email == "user@finly.dev").first().id
+    user_id = peek(lambda db: db.query(User).filter(User.email == "user@finly.dev").first().id)
     _, m_id = _seed_path(user_id=user_id)
 
     client.put(f"/api/milestones/{m_id}/note", json={"content": "v1", "is_private": False})
@@ -138,24 +139,24 @@ def test_upsert_updates_existing_note(client, captured_tokens):
     assert body["is_private"] is True
     assert body["difficulty_flag"] == -1
     # Only one row in DB
-    assert SessionLocal().query(MilestoneNote).count() == 1
+    assert peek(lambda db: db.query(MilestoneNote).count()) == 1
 
 
 def test_upsert_with_blank_content_deletes(client, captured_tokens):
     _sign_in(client, captured_tokens, "user@finly.dev")
-    user_id = SessionLocal().query(User).filter(User.email == "user@finly.dev").first().id
+    user_id = peek(lambda db: db.query(User).filter(User.email == "user@finly.dev").first().id)
     _, m_id = _seed_path(user_id=user_id)
 
     client.put(f"/api/milestones/{m_id}/note", json={"content": "v1", "is_private": False})
     res = client.put(f"/api/milestones/{m_id}/note", json={"content": "   ", "is_private": False})
     assert res.status_code == 200
     assert res.json() is None
-    assert SessionLocal().query(MilestoneNote).count() == 0
+    assert peek(lambda db: db.query(MilestoneNote).count()) == 0
 
 
 def test_get_note_returns_caller_only(client, captured_tokens):
     _sign_in(client, captured_tokens, "alice@finly.dev")
-    alice_id = SessionLocal().query(User).filter(User.email == "alice@finly.dev").first().id
+    alice_id = peek(lambda db: db.query(User).filter(User.email == "alice@finly.dev").first().id)
     _, m_id = _seed_path(user_id=alice_id)
     client.put(f"/api/milestones/{m_id}/note", json={"content": "alice note", "is_private": False})
 
@@ -169,19 +170,19 @@ def test_get_note_returns_caller_only(client, captured_tokens):
 
 def test_delete_note_clears(client, captured_tokens):
     _sign_in(client, captured_tokens, "user@finly.dev")
-    user_id = SessionLocal().query(User).filter(User.email == "user@finly.dev").first().id
+    user_id = peek(lambda db: db.query(User).filter(User.email == "user@finly.dev").first().id)
     _, m_id = _seed_path(user_id=user_id)
     client.put(f"/api/milestones/{m_id}/note", json={"content": "byebye", "is_private": False})
 
     res = client.delete(f"/api/milestones/{m_id}/note")
     assert res.status_code == 204
-    assert SessionLocal().query(MilestoneNote).count() == 0
+    assert peek(lambda db: db.query(MilestoneNote).count()) == 0
 
 
 def test_public_notes_endpoint_includes_only_public(client, captured_tokens):
     # Alice creates a note (default public) on her own public path
     _sign_in(client, captured_tokens, "alice@finly.dev")
-    alice_id = SessionLocal().query(User).filter(User.email == "alice@finly.dev").first().id
+    alice_id = peek(lambda db: db.query(User).filter(User.email == "alice@finly.dev").first().id)
     path_id, m_id = _seed_path(user_id=alice_id, is_public=True)
     res = client.put(f"/api/milestones/{m_id}/note",
                      json={"content": "Loved this", "is_private": False})
@@ -213,19 +214,19 @@ def test_a_stranger_cannot_note_someone_elses_milestone(client, captured_tokens)
     """Notes are owner-only (AP32 close-out review round 3). Without this, a stranger's
     note — `is_private` defaults to False — published onto the owner's share page."""
     _sign_in(client, captured_tokens, "alice@finly.dev")
-    alice_id = SessionLocal().query(User).filter(User.email == "alice@finly.dev").first().id
+    alice_id = peek(lambda db: db.query(User).filter(User.email == "alice@finly.dev").first().id)
     _, m_id = _seed_path(user_id=alice_id, is_public=True)
 
     _sign_in(client, captured_tokens, "bob@finly.dev")
     res = client.put(f"/api/milestones/{m_id}/note",
                      json={"content": "graffiti", "is_private": False})
     assert res.status_code == 404, res.text
-    assert SessionLocal().query(MilestoneNote).count() == 0
+    assert peek(lambda db: db.query(MilestoneNote).count()) == 0
 
 
 def test_public_notes_404_when_path_not_public(client, captured_tokens):
     _sign_in(client, captured_tokens, "alice@finly.dev")
-    alice_id = SessionLocal().query(User).filter(User.email == "alice@finly.dev").first().id
+    alice_id = peek(lambda db: db.query(User).filter(User.email == "alice@finly.dev").first().id)
     path_id, _ = _seed_path(user_id=alice_id, is_public=False)
 
     anon = TestClient(app)
@@ -236,7 +237,7 @@ def test_public_notes_404_when_path_not_public(client, captured_tokens):
 def test_fork_does_not_copy_notes(client, captured_tokens):
     """AP12 spec: forked paths start with clean reflection fields."""
     _sign_in(client, captured_tokens, "alice@finly.dev")
-    alice_id = SessionLocal().query(User).filter(User.email == "alice@finly.dev").first().id
+    alice_id = peek(lambda db: db.query(User).filter(User.email == "alice@finly.dev").first().id)
     path_id, m_id = _seed_path(user_id=alice_id, is_public=True)
     client.put(f"/api/milestones/{m_id}/note", json={"content": "alice's reflection", "is_private": False})
 
