@@ -1,0 +1,68 @@
+{
+  "case_id": "small-biz",
+  "source": "hand-authored",
+  "model": null,
+  "recorded_at": "2026-10-01",
+  "_note": "SYNTHETIC: written by hand as a plausible model reply, not recorded from a model (no API key was available). Re-record with `run.py --record`.",
+  "response": {
+    "path_title": "Launch Your First Online Business",
+    "path_description": "A practical path from idea to first sales: validate a market, set up a store, price your offer and keep the numbers healthy.",
+    "category": "Business",
+    "milestones": [
+      {
+        "title": "Find and Validate an Idea",
+        "description": "Identify a problem, research the market and talk to potential customers before building anything.",
+        "estimated_hours": 8,
+        "resources": [
+          "The Mom Test (Rob Fitzpatrick)",
+          "Google Trends"
+        ]
+      },
+      {
+        "title": "Business Basics and Budget",
+        "description": "Legal structure, a simple budget, startup costs and tracking cash flow.",
+        "estimated_hours": 6,
+        "resources": [
+          "SBA.gov small business guide",
+          "Profit First (Mike Michalowicz)"
+        ]
+      },
+      {
+        "title": "Build Your Online Store",
+        "description": "Choose a platform, set up products, payments and shipping.",
+        "estimated_hours": 10,
+        "resources": [
+          "Shopify Learn",
+          "WooCommerce documentation"
+        ]
+      },
+      {
+        "title": "Pricing Your Product",
+        "description": "Cost-plus vs value-based pricing, margins and simple experiments.",
+        "estimated_hours": 5,
+        "resources": [
+          "Price Intelligently blog",
+          "HBR: The Pricing Strategy guide"
+        ]
+      },
+      {
+        "title": "Marketing and Customer Acquisition",
+        "description": "Social media, email lists, SEO basics and a first paid campaign.",
+        "estimated_hours": 12,
+        "resources": [
+          "HubSpot Academy",
+          "Building a StoryBrand (Donald Miller)"
+        ]
+      },
+      {
+        "title": "Operations and Growth",
+        "description": "Customer service, reviews, repeat customers and reading your metrics monthly.",
+        "estimated_hours": 10,
+        "resources": [
+          "Traction (Weinberg & Mares)",
+          "Google Analytics Academy"
+        ]
+      }
+    ]
+  }
+}

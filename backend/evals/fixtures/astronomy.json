@@ -1,0 +1,68 @@
+{
+  "case_id": "astronomy",
+  "source": "hand-authored",
+  "model": null,
+  "recorded_at": "2026-10-01",
+  "_note": "SYNTHETIC: written by hand as a plausible model reply, not recorded from a model (no API key was available). Re-record with `run.py --record`.",
+  "response": {
+    "path_title": "Amateur Astronomy: Your First Year Under the Stars",
+    "path_description": "Learn the sky, choose equipment wisely and start observing planets, the Moon and deep-sky objects.",
+    "category": "Science",
+    "milestones": [
+      {
+        "title": "Learning the Night Sky",
+        "description": "Find the main constellations and bright stars with your eyes and a star chart.",
+        "estimated_hours": 4,
+        "resources": [
+          "Stellarium (free planetarium software)",
+          "NightWatch by Terence Dickinson"
+        ]
+      },
+      {
+        "title": "Binocular Astronomy",
+        "description": "What binoculars reveal: the Moon, star clusters, and how to observe comfortably.",
+        "estimated_hours": 4,
+        "resources": [
+          "Touring the Universe through Binoculars",
+          "Sky & Telescope binocular guides"
+        ]
+      },
+      {
+        "title": "Observing the Moon and Planets",
+        "description": "Lunar features, the phases, and spotting Jupiter's moons and Saturn's rings.",
+        "estimated_hours": 6,
+        "resources": [
+          "The Sky at Night (BBC)",
+          "NASA Solar System Exploration"
+        ]
+      },
+      {
+        "title": "Choosing a Telescope",
+        "description": "Refractors, reflectors, mounts, eyepieces and avoiding common beginner mistakes.",
+        "estimated_hours": 5,
+        "resources": [
+          "Cloudy Nights forum: beginners",
+          "Turn Left at Orion"
+        ]
+      },
+      {
+        "title": "Deep-Sky Observing",
+        "description": "Galaxies, nebulae and the Messier catalogue under dark skies.",
+        "estimated_hours": 8,
+        "resources": [
+          "Messier catalogue (SEDS)",
+          "Light pollution map (lightpollutionmap.info)"
+        ]
+      },
+      {
+        "title": "Astrophotography Basics",
+        "description": "Phone and DSLR photos of the Moon and star trails.",
+        "estimated_hours": 6,
+        "resources": [
+          "Lonely Speck astrophotography guides",
+          "r/astrophotography"
+        ]
+      }
+    ]
+  }
+}

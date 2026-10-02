@@ -1,0 +1,59 @@
+{
+  "case_id": "aquarel-nl",
+  "source": "hand-authored",
+  "model": null,
+  "recorded_at": "2026-10-01",
+  "_note": "SYNTHETIC: written by hand as a plausible model reply, not recorded from a model (no API key was available). Re-record with `run.py --record`.",
+  "response": {
+    "path_title": "Aquarelleren voor beginners",
+    "path_description": "Leer de basis van aquarelverf: materiaal, kleuren mengen en de belangrijkste technieken om je eerste schilderijen te maken.",
+    "category": "Creative",
+    "milestones": [
+      {
+        "title": "Materiaal kiezen",
+        "description": "Welk papier, welke penseel en welke verf je nodig hebt, en waarom 300 g/m² papier het verschil maakt.",
+        "estimated_hours": 2,
+        "resources": [
+          "Talens: aquarelmateriaal uitgelegd",
+          "Jenna Rainey: Everyday Watercolor"
+        ]
+      },
+      {
+        "title": "Kleuren mengen",
+        "description": "Een kleurenwiel maken, primaire kleuren mengen en de waarde van water in je kleur.",
+        "estimated_hours": 4,
+        "resources": [
+          "Kleurenleer (Itten) samenvatting",
+          "YouTube: Steve Mitchell – The Mind of Watercolor"
+        ]
+      },
+      {
+        "title": "Basistechnieken",
+        "description": "Nat-in-nat, nat-op-droog, verlopen en egale washes oefenen.",
+        "estimated_hours": 5,
+        "resources": [
+          "Aquarel technieken voor beginners (boek)",
+          "Skillshare aquarel cursussen"
+        ]
+      },
+      {
+        "title": "Licht en schaduw",
+        "description": "Waarden, het wit van het papier sparen en lagen opbouwen.",
+        "estimated_hours": 5,
+        "resources": [
+          "Watercolor Workbook: lichte en donkere waarden",
+          "Online aquarelcursus van de Volksuniversiteit"
+        ]
+      },
+      {
+        "title": "Eerste landschap",
+        "description": "Een eenvoudig landschap schilderen: lucht, horizon en voorgrond.",
+        "estimated_hours": 6,
+        "resources": [
+          "Terry Harrison landschapsdemo's",
+          "Pinterest: eenvoudige aquarel landschappen"
+        ]
+      }
+    ]
+  }
+}

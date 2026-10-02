@@ -1,0 +1,68 @@
+{
+  "case_id": "sql",
+  "source": "hand-authored",
+  "model": null,
+  "recorded_at": "2026-10-01",
+  "_note": "SYNTHETIC: written by hand as a plausible model reply, not recorded from a model (no API key was available). Re-record with `run.py --record`.",
+  "response": {
+    "path_title": "SQL for Analytics",
+    "path_description": "Learn to query, join and aggregate data so you can answer business questions straight from a database.",
+    "category": "Programming",
+    "milestones": [
+      {
+        "title": "Relational Databases and SELECT",
+        "description": "Tables, rows, columns, and writing your first SELECT queries with WHERE and ORDER BY.",
+        "estimated_hours": 4,
+        "resources": [
+          "SQLBolt interactive lessons",
+          "Mode SQL Tutorial"
+        ]
+      },
+      {
+        "title": "Filtering and Functions",
+        "description": "LIKE, IN, BETWEEN, NULL handling, CASE expressions, and date functions.",
+        "estimated_hours": 5,
+        "resources": [
+          "PostgreSQL documentation: functions",
+          "W3Schools SQL"
+        ]
+      },
+      {
+        "title": "Aggregations with GROUP BY",
+        "description": "COUNT, SUM, AVG, GROUP BY and HAVING to summarise data.",
+        "estimated_hours": 6,
+        "resources": [
+          "Mode SQL: Aggregate functions",
+          "SQLZoo"
+        ]
+      },
+      {
+        "title": "JOINs",
+        "description": "Inner, left and full joins; joining three tables; spotting duplicated rows from a bad join.",
+        "estimated_hours": 8,
+        "resources": [
+          "Visual JOIN explainer (joins.spathon.com)",
+          "LeetCode database problems"
+        ]
+      },
+      {
+        "title": "Subqueries and Window Functions",
+        "description": "CTEs, subqueries, ROW_NUMBER, running totals and period-over-period comparisons.",
+        "estimated_hours": 10,
+        "resources": [
+          "Window Functions guide (mode.com)",
+          "Use The Index, Luke"
+        ]
+      },
+      {
+        "title": "Query Performance",
+        "description": "How an index works, reading EXPLAIN output, and writing queries that scale.",
+        "estimated_hours": 6,
+        "resources": [
+          "Use The Index, Luke",
+          "PostgreSQL EXPLAIN docs"
+        ]
+      }
+    ]
+  }
+}

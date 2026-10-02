@@ -1,0 +1,59 @@
+{
+  "case_id": "aleman-es",
+  "source": "hand-authored",
+  "model": null,
+  "recorded_at": "2026-10-01",
+  "_note": "SYNTHETIC: written by hand as a plausible model reply, not recorded from a model (no API key was available). Re-record with `run.py --record`.",
+  "response": {
+    "path_title": "Alemán básico desde cero",
+    "path_description": "Un camino para hispanohablantes que quieren entender y hablar alemán en situaciones cotidianas.",
+    "category": "Language",
+    "milestones": [
+      {
+        "title": "Pronunciación y alfabeto",
+        "description": "Sonidos del alemán, las diéresis, la pronunciación de ch y r, y saludos básicos.",
+        "estimated_hours": 5,
+        "resources": [
+          "Deutsche Welle: Nicos Weg (A1)",
+          "Forvo"
+        ]
+      },
+      {
+        "title": "Vocabulario esencial",
+        "description": "Números, familia, comida, días y horas con repetición espaciada.",
+        "estimated_hours": 8,
+        "resources": [
+          "Anki: mazo alemán A1",
+          "Duolingo alemán"
+        ]
+      },
+      {
+        "title": "Artículos y casos",
+        "description": "Der, die, das; nominativo y acusativo; cómo aprender el género de cada sustantivo.",
+        "estimated_hours": 10,
+        "resources": [
+          "Gramática alemana de Deutsche Welle",
+          "Libro: Gramática básica del alemán (Hueber)"
+        ]
+      },
+      {
+        "title": "Verbos en presente",
+        "description": "Conjugación de verbos regulares e irregulares frecuentes, verbos modales y separables.",
+        "estimated_hours": 10,
+        "resources": [
+          "Verbformen.de",
+          "Lingolia alemán"
+        ]
+      },
+      {
+        "title": "Conversación cotidiana",
+        "description": "Presentarse, pedir en un restaurante, preguntar direcciones; práctica oral.",
+        "estimated_hours": 8,
+        "resources": [
+          "Tandem: intercambio de idiomas",
+          "Podcast Slow German"
+        ]
+      }
+    ]
+  }
+}

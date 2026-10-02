@@ -1,0 +1,68 @@
+{
+  "case_id": "ml-fr",
+  "source": "hand-authored",
+  "model": null,
+  "recorded_at": "2026-10-01",
+  "_note": "SYNTHETIC: written by hand as a plausible model reply, not recorded from a model (no API key was available). Re-record with `run.py --record`.",
+  "response": {
+    "path_title": "Les bases du machine learning",
+    "path_description": "Un parcours pour comprendre et appliquer les algorithmes fondamentaux de l'apprentissage automatique avec Python.",
+    "category": "Programming",
+    "milestones": [
+      {
+        "title": "Python et manipulation de données",
+        "description": "Révision de Python, NumPy et pandas pour préparer des jeux de données.",
+        "estimated_hours": 10,
+        "resources": [
+          "Documentation pandas",
+          "Python Data Science Handbook"
+        ]
+      },
+      {
+        "title": "Statistiques et probabilités essentielles",
+        "description": "Moyenne, variance, distributions, corrélation : le vocabulaire statistique du machine learning.",
+        "estimated_hours": 10,
+        "resources": [
+          "Khan Academy – Statistiques",
+          "Think Stats (Allen Downey)"
+        ]
+      },
+      {
+        "title": "Régression linéaire",
+        "description": "Ajuster un modèle, fonction de coût, descente de gradient et évaluation par l'erreur quadratique.",
+        "estimated_hours": 12,
+        "resources": [
+          "Cours de machine learning d'Andrew Ng",
+          "Documentation scikit-learn"
+        ]
+      },
+      {
+        "title": "Classification",
+        "description": "Régression logistique, k plus proches voisins, arbres de décision, matrice de confusion.",
+        "estimated_hours": 14,
+        "resources": [
+          "scikit-learn : guide de l'utilisateur",
+          "Hands-On Machine Learning (Aurélien Géron)"
+        ]
+      },
+      {
+        "title": "Évaluation et validation des modèles",
+        "description": "Validation croisée, surapprentissage, régularisation et choix des métriques.",
+        "estimated_hours": 10,
+        "resources": [
+          "scikit-learn : model evaluation",
+          "Google Machine Learning Crash Course"
+        ]
+      },
+      {
+        "title": "Projet final",
+        "description": "Construire un modèle de bout en bout sur un jeu de données réel et présenter les résultats.",
+        "estimated_hours": 16,
+        "resources": [
+          "Kaggle",
+          "UCI Machine Learning Repository"
+        ]
+      }
+    ]
+  }
+}

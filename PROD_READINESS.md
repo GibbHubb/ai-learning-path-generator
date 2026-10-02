@@ -21,4 +21,7 @@ Stack: Python · FastAPI · React · SQLite · OpenAI
 - Structured outputs via `response_format={"type":"json_schema",...}` with Pydantic
 - Prompt versioning in `prompts/` with git-tracked changelog
 - Eval harness: pytest dataset of `(goal, expected_skills)` — embedding cosine + LLM-as-judge
+  - ✅ **Deterministic half done (AP39):** `backend/evals/` — 15-case gold set, five no-model checks,
+    offline run wired into pytest against `baseline.json`. Embedding cosine and LLM-as-judge are
+    still open (both cost a model call per case per run).
 - Cost + latency per request, OpenTelemetry traces exported

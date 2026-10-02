@@ -1,0 +1,68 @@
+{
+  "case_id": "pm-de",
+  "source": "hand-authored",
+  "model": null,
+  "recorded_at": "2026-10-01",
+  "_note": "SYNTHETIC: written by hand as a plausible model reply, not recorded from a model (no API key was available). Re-record with `run.py --record`.",
+  "response": {
+    "path_title": "Grundlagen des Projektmanagements",
+    "path_description": "Ein praxisnaher Lernpfad zu Planung, Steuerung und Abschluss von Projekten im Team.",
+    "category": "Business",
+    "milestones": [
+      {
+        "title": "Was ist ein Projekt?",
+        "description": "Projektdefinition, magisches Dreieck aus Zeit, Kosten und Umfang, Rollen im Projekt.",
+        "estimated_hours": 4,
+        "resources": [
+          "PMI: Was ist Projektmanagement?",
+          "Projektmanagement für Dummies"
+        ]
+      },
+      {
+        "title": "Projektziele und Stakeholder",
+        "description": "SMART-Ziele formulieren und eine Stakeholder-Analyse durchführen.",
+        "estimated_hours": 5,
+        "resources": [
+          "IPMA Kompetenzrichtlinie",
+          "Stakeholder-Analyse Vorlage (projektmagazin.de)"
+        ]
+      },
+      {
+        "title": "Planung und Zeitplan",
+        "description": "Projektstrukturplan, Arbeitspakete, Gantt-Diagramm und kritischer Pfad.",
+        "estimated_hours": 8,
+        "resources": [
+          "projektmagazin.de: Projektplanung",
+          "GanttProject (kostenlos)"
+        ]
+      },
+      {
+        "title": "Risikomanagement",
+        "description": "Risiken identifizieren, bewerten und Gegenmaßnahmen planen.",
+        "estimated_hours": 6,
+        "resources": [
+          "PMBOK Guide, Kapitel Risiko",
+          "Risikomatrix-Vorlage"
+        ]
+      },
+      {
+        "title": "Team und Kommunikation",
+        "description": "Teamphasen, Kommunikationsplan, Meetings und Konfliktlösung.",
+        "estimated_hours": 6,
+        "resources": [
+          "Tuckman-Modell erklärt",
+          "Scrum Guide (deutsch)"
+        ]
+      },
+      {
+        "title": "Steuerung und Abschluss",
+        "description": "Fortschritt messen, Änderungen steuern und ein Projekt sauber abschließen mit Lessons Learned.",
+        "estimated_hours": 8,
+        "resources": [
+          "Earned-Value-Analyse Einführung",
+          "PRINCE2 Überblick"
+        ]
+      }
+    ]
+  }
+}

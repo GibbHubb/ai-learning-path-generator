@@ -1,0 +1,68 @@
+{
+  "case_id": "finance",
+  "source": "hand-authored",
+  "model": null,
+  "recorded_at": "2026-10-01",
+  "_note": "SYNTHETIC: written by hand as a plausible model reply, not recorded from a model (no API key was available). Re-record with `run.py --record`.",
+  "response": {
+    "path_title": "Personal Finance and Investing Basics",
+    "path_description": "Get your money organised, build a safety net, and start investing simply and for the long term.",
+    "category": "Business",
+    "milestones": [
+      {
+        "title": "Know Where Your Money Goes",
+        "description": "Track spending for a month and build a realistic monthly budget.",
+        "estimated_hours": 3,
+        "resources": [
+          "YNAB budgeting method",
+          "r/personalfinance wiki"
+        ]
+      },
+      {
+        "title": "Emergency Fund and Saving",
+        "description": "How much to save, where to keep it, and automating saving.",
+        "estimated_hours": 3,
+        "resources": [
+          "The Simple Path to Wealth (JL Collins)",
+          "Investopedia: Emergency fund"
+        ]
+      },
+      {
+        "title": "Debt Management",
+        "description": "Avalanche vs snowball, interest rates and when to pay debt before investing.",
+        "estimated_hours": 3,
+        "resources": [
+          "Investopedia: Debt avalanche",
+          "NerdWallet debt guides"
+        ]
+      },
+      {
+        "title": "How Investing Works",
+        "description": "Stocks, bonds, risk and return, diversification and the power of compound interest.",
+        "estimated_hours": 5,
+        "resources": [
+          "A Random Walk Down Wall Street",
+          "Khan Academy: Finance"
+        ]
+      },
+      {
+        "title": "Index Funds and ETFs",
+        "description": "Low-cost index funds, ETFs, expense ratios and choosing a broker.",
+        "estimated_hours": 4,
+        "resources": [
+          "Bogleheads wiki",
+          "Vanguard investor education"
+        ]
+      },
+      {
+        "title": "Your Long-Term Plan",
+        "description": "Retirement accounts, asset allocation by age and rebalancing once a year.",
+        "estimated_hours": 4,
+        "resources": [
+          "Bogleheads' Guide to Investing",
+          "Morningstar portfolio tools"
+        ]
+      }
+    ]
+  }
+}

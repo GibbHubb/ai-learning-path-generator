@@ -1,0 +1,68 @@
+{
+  "case_id": "figma",
+  "source": "hand-authored",
+  "model": null,
+  "recorded_at": "2026-10-01",
+  "_note": "SYNTHETIC: written by hand as a plausible model reply, not recorded from a model (no API key was available). Re-record with `run.py --record`.",
+  "response": {
+    "path_title": "UI Design with Figma",
+    "path_description": "Go from a blank canvas to a clickable prototype, learning the visual design principles behind good interfaces.",
+    "category": "Design",
+    "milestones": [
+      {
+        "title": "Figma Essentials",
+        "description": "Frames, shapes, the layers panel, components and how to navigate a Figma file.",
+        "estimated_hours": 4,
+        "resources": [
+          "Figma Learn (official)",
+          "Figma YouTube channel"
+        ]
+      },
+      {
+        "title": "Layout and Grids",
+        "description": "Spacing systems, layout grids and Auto Layout to build responsive screens.",
+        "estimated_hours": 6,
+        "resources": [
+          "Figma Auto Layout guide",
+          "Refactoring UI"
+        ]
+      },
+      {
+        "title": "Typography",
+        "description": "Type scales, font pairing, line height and hierarchy for readable interfaces.",
+        "estimated_hours": 5,
+        "resources": [
+          "Butterick's Practical Typography",
+          "Google Fonts knowledge"
+        ]
+      },
+      {
+        "title": "Colour and Contrast",
+        "description": "Building a colour palette, contrast for accessibility, and light/dark themes.",
+        "estimated_hours": 5,
+        "resources": [
+          "WebAIM contrast checker",
+          "Refactoring UI: Working with color"
+        ]
+      },
+      {
+        "title": "Components and Design Systems",
+        "description": "Variants, properties and a small reusable component library.",
+        "estimated_hours": 8,
+        "resources": [
+          "Figma components docs",
+          "Material Design 3 guidelines"
+        ]
+      },
+      {
+        "title": "Prototyping and Handoff",
+        "description": "Interactive prototypes, transitions, user testing and developer handoff.",
+        "estimated_hours": 8,
+        "resources": [
+          "Figma prototyping docs",
+          "Nielsen Norman Group usability articles"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "case_id": "spanish",
+  "source": "hand-authored",
+  "model": null,
+  "recorded_at": "2026-10-01",
+  "_note": "SYNTHETIC: written by hand as a plausible model reply, not recorded from a model (no API key was available). Re-record with `run.py --record`.",
+  "response": {
+    "path_title": "Travel Spanish in Eight Weeks",
+    "path_description": "Practical Spanish for getting around, ordering food and making small talk on your trip.",
+    "category": "Language",
+    "milestones": [
+      {
+        "title": "Pronunciation and Greetings",
+        "description": "The Spanish alphabet, vowel sounds, stress rules and everyday greetings.",
+        "estimated_hours": 5,
+        "resources": [
+          "SpanishPod101 pronunciation series",
+          "Forvo pronunciation dictionary"
+        ]
+      },
+      {
+        "title": "Core Travel Vocabulary",
+        "description": "Numbers, time, directions, transport and accommodation words with spaced repetition.",
+        "estimated_hours": 8,
+        "resources": [
+          "Anki Spanish travel deck",
+          "Duolingo Spanish"
+        ]
+      },
+      {
+        "title": "Present Tense Verbs",
+        "description": "Regular -ar, -er, -ir verbs and the key irregulars ser, estar, ir and tener.",
+        "estimated_hours": 8,
+        "resources": [
+          "SpanishDict grammar guides",
+          "Madrigal's Magic Key to Spanish"
+        ]
+      },
+      {
+        "title": "Essential Grammar",
+        "description": "Gender, articles, adjectives and forming questions.",
+        "estimated_hours": 6,
+        "resources": [
+          "Practice Makes Perfect: Basic Spanish",
+          "StudySpanish.com"
+        ]
+      },
+      {
+        "title": "Restaurant and Shopping Conversation",
+        "description": "Ordering, asking prices and polite requests in role-play dialogues.",
+        "estimated_hours": 6,
+        "resources": [
+          "Coffee Break Spanish podcast",
+          "Language exchange on Tandem"
+        ]
+      },
+      {
+        "title": "Conversation Practice",
+        "description": "Short conversations with native speakers and a mock trip day.",
+        "estimated_hours": 8,
+        "resources": [
+          "italki community tutors",
+          "Dreaming Spanish (comprehensible input)"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "case_id": "guitar",
+  "source": "hand-authored",
+  "model": null,
+  "recorded_at": "2026-10-01",
+  "_note": "SYNTHETIC: written by hand as a plausible model reply, not recorded from a model (no API key was available). Re-record with `run.py --record`.",
+  "response": {
+    "path_title": "Acoustic Guitar for Beginners",
+    "path_description": "Build the hand skills and musical basics to play songs you love on the acoustic guitar.",
+    "category": "Creative",
+    "milestones": [
+      {
+        "title": "Guitar Setup and Posture",
+        "description": "Holding the guitar, tuning, and reading chord diagrams and tabs.",
+        "estimated_hours": 3,
+        "resources": [
+          "JustinGuitar Beginner Course",
+          "GuitarTuna app"
+        ]
+      },
+      {
+        "title": "Your First Chords",
+        "description": "E minor, G, C, D and A minor; clean finger placement and chord changes.",
+        "estimated_hours": 8,
+        "resources": [
+          "JustinGuitar: Stage 1",
+          "Ultimate Guitar chord charts"
+        ]
+      },
+      {
+        "title": "Strumming and Rhythm",
+        "description": "Down-up strumming patterns, keeping time with a metronome and counting beats.",
+        "estimated_hours": 8,
+        "resources": [
+          "Marty Music strumming lessons",
+          "Metronome Online"
+        ]
+      },
+      {
+        "title": "Barre Chords and Fingerstyle",
+        "description": "F and B minor barre chords and simple fingerpicking patterns.",
+        "estimated_hours": 12,
+        "resources": [
+          "Andy Guitar fingerstyle lessons",
+          "Hal Leonard Guitar Method"
+        ]
+      },
+      {
+        "title": "Playing Full Songs",
+        "description": "Combine chords and rhythm to play complete songs from start to finish.",
+        "estimated_hours": 10,
+        "resources": [
+          "Ultimate Guitar tabs",
+          "Songsterr"
+        ]
+      },
+      {
+        "title": "Performance Piece",
+        "description": "Learn one song well enough to record or play it for friends.",
+        "estimated_hours": 6,
+        "resources": [
+          "JustinGuitar Songbook",
+          "Your phone's voice recorder"
+        ]
+      }
+    ]
+  }
+}

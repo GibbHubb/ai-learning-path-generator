@@ -1,0 +1,77 @@
+{
+  "case_id": "py-data",
+  "source": "hand-authored",
+  "model": null,
+  "recorded_at": "2026-10-01",
+  "_note": "SYNTHETIC: written by hand as a plausible model reply, not recorded from a model (no API key was available). Re-record with `run.py --record`.",
+  "response": {
+    "path_title": "Python for Data Analysis: From Zero to Insight",
+    "path_description": "A beginner path that takes you from Python basics to cleaning, analysing and visualising real datasets with pandas and NumPy.",
+    "category": "Programming",
+    "milestones": [
+      {
+        "title": "Python Fundamentals",
+        "description": "Variables, data types, loops, functions and lists — the Python you need before touching data.",
+        "estimated_hours": 10,
+        "resources": [
+          "Automate the Boring Stuff with Python",
+          "Python.org official tutorial"
+        ]
+      },
+      {
+        "title": "Working in Jupyter Notebooks",
+        "description": "Set up Anaconda, run code cells, mix markdown and code, and keep an analysis reproducible in Jupyter.",
+        "estimated_hours": 4,
+        "resources": [
+          "Jupyter documentation",
+          "Kaggle Learn: Intro to Programming"
+        ]
+      },
+      {
+        "title": "NumPy Arrays",
+        "description": "Vectorised operations, indexing, broadcasting and why arrays are faster than lists for numeric work.",
+        "estimated_hours": 8,
+        "resources": [
+          "NumPy user guide",
+          "Python Data Science Handbook, ch. 2"
+        ]
+      },
+      {
+        "title": "pandas DataFrames",
+        "description": "Load CSV and Excel files, select, filter, group and merge DataFrames.",
+        "estimated_hours": 14,
+        "resources": [
+          "pandas '10 minutes to pandas'",
+          "Python for Data Analysis by Wes McKinney"
+        ]
+      },
+      {
+        "title": "Data Cleaning",
+        "description": "Missing values, duplicates, type conversion and tidy-data principles on a messy real dataset.",
+        "estimated_hours": 12,
+        "resources": [
+          "Kaggle Learn: Data Cleaning",
+          "Tidy Data paper by Hadley Wickham"
+        ]
+      },
+      {
+        "title": "Visualization with Matplotlib and Seaborn",
+        "description": "Line, bar and scatter plots, distributions, and choosing the right chart for the question.",
+        "estimated_hours": 10,
+        "resources": [
+          "Matplotlib gallery",
+          "Seaborn tutorial"
+        ]
+      },
+      {
+        "title": "Capstone: Exploratory Analysis Project",
+        "description": "Pick a public dataset, ask three questions, answer them in a notebook with charts and a short written summary.",
+        "estimated_hours": 16,
+        "resources": [
+          "Kaggle Datasets",
+          "Our World in Data"
+        ]
+      }
+    ]
+  }
+}

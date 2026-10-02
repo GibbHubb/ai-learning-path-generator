@@ -1,0 +1,59 @@
+{
+  "case_id": "orgchem",
+  "source": "hand-authored",
+  "model": null,
+  "recorded_at": "2026-10-01",
+  "_note": "SYNTHETIC: written by hand as a plausible model reply, not recorded from a model (no API key was available). Re-record with `run.py --record`.",
+  "response": {
+    "path_title": "Foundations of Organic Chemistry",
+    "path_description": "Understand how carbon-based molecules are built, named and how they react.",
+    "category": "Science",
+    "milestones": [
+      {
+        "title": "Atoms, Electrons and Bonding",
+        "description": "Electron configuration, covalent bonds, electronegativity and Lewis structures.",
+        "estimated_hours": 8,
+        "resources": [
+          "Khan Academy: Organic chemistry",
+          "Organic Chemistry as a Second Language (Klein)"
+        ]
+      },
+      {
+        "title": "Carbon and Molecular Shape",
+        "description": "Hybridisation of carbon, VSEPR and 3D molecular geometry.",
+        "estimated_hours": 8,
+        "resources": [
+          "LibreTexts Organic Chemistry",
+          "MolView (online 3D viewer)"
+        ]
+      },
+      {
+        "title": "Functional Groups and Naming",
+        "description": "Alkanes, alkenes, alcohols, carbonyls; recognising each functional group and IUPAC names.",
+        "estimated_hours": 10,
+        "resources": [
+          "IUPAC nomenclature guide",
+          "Master Organic Chemistry blog"
+        ]
+      },
+      {
+        "title": "Isomers and Stereochemistry",
+        "description": "Structural isomers, chirality and R/S configuration.",
+        "estimated_hours": 10,
+        "resources": [
+          "Master Organic Chemistry: Stereochemistry",
+          "Khan Academy: Stereochemistry"
+        ]
+      },
+      {
+        "title": "Reaction Mechanisms",
+        "description": "Nucleophiles, electrophiles, curved arrows, substitution and elimination reactions.",
+        "estimated_hours": 14,
+        "resources": [
+          "Clayden Organic Chemistry",
+          "Organic Chemistry Tutor (YouTube)"
+        ]
+      }
+    ]
+  }
+}

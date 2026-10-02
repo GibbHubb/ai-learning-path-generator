@@ -1,0 +1,68 @@
+{
+  "case_id": "foto-pt",
+  "source": "hand-authored",
+  "model": null,
+  "recorded_at": "2026-10-01",
+  "_note": "SYNTHETIC: written by hand as a plausible model reply, not recorded from a model (no API key was available). Re-record with `run.py --record`.",
+  "response": {
+    "path_title": "Fotografia digital para iniciantes",
+    "path_description": "Domine a sua câmera e aprenda a criar fotos com boa exposição, luz e composição.",
+    "category": "Creative",
+    "milestones": [
+      {
+        "title": "Conhecer a sua câmera",
+        "description": "Modos de disparo, foco automático, formatos RAW e JPEG.",
+        "estimated_hours": 4,
+        "resources": [
+          "Manual da sua câmera",
+          "Canal Fotografia Mais (YouTube)"
+        ]
+      },
+      {
+        "title": "Triângulo da exposição",
+        "description": "Abertura, velocidade do obturador e ISO, e como se equilibram para uma exposição correta.",
+        "estimated_hours": 8,
+        "resources": [
+          "Understanding Exposure (Bryan Peterson)",
+          "Cambridge in Colour: tutoriais de exposição"
+        ]
+      },
+      {
+        "title": "Luz natural",
+        "description": "Hora dourada, luz dura e suave, contraluz e como ler a luz numa cena.",
+        "estimated_hours": 6,
+        "resources": [
+          "Light Science & Magic",
+          "Artigos da Digital Photography School"
+        ]
+      },
+      {
+        "title": "Composição",
+        "description": "Regra dos terços, linhas de orientação, enquadramento e simplicidade.",
+        "estimated_hours": 6,
+        "resources": [
+          "The Photographer's Eye (Michael Freeman)",
+          "Curso gratuito de composição (Fstoppers)"
+        ]
+      },
+      {
+        "title": "Edição básica",
+        "description": "Ajustes no Lightroom ou Darktable: exposição, balanço de brancos e recorte.",
+        "estimated_hours": 8,
+        "resources": [
+          "Darktable (gratuito)",
+          "Adobe Lightroom tutoriais"
+        ]
+      },
+      {
+        "title": "Projeto fotográfico",
+        "description": "Um projeto de 30 dias com um tema, revisando as suas melhores fotos.",
+        "estimated_hours": 10,
+        "resources": [
+          "Desafio 52 semanas de fotografia",
+          "Comunidade Flickr"
+        ]
+      }
+    ]
+  }
+}

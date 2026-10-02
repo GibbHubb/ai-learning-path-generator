@@ -1,0 +1,77 @@
+{
+  "case_id": "rest-api",
+  "source": "hand-authored",
+  "model": null,
+  "recorded_at": "2026-10-01",
+  "_note": "SYNTHETIC: written by hand as a plausible model reply, not recorded from a model (no API key was available). Re-record with `run.py --record`.",
+  "response": {
+    "path_title": "Building Production-Ready REST APIs with FastAPI",
+    "path_description": "For developers who know Python: design, build, secure and test an HTTP API with FastAPI, Pydantic and a real database.",
+    "category": "Programming",
+    "milestones": [
+      {
+        "title": "HTTP and REST Design",
+        "description": "Methods, status codes, resources, idempotency and how to design clean endpoint URLs.",
+        "estimated_hours": 4,
+        "resources": [
+          "MDN HTTP overview",
+          "RESTful Web APIs (Richardson & Amundsen)"
+        ]
+      },
+      {
+        "title": "FastAPI Basics",
+        "description": "Path and query parameters, request bodies and automatic OpenAPI docs for your first endpoint.",
+        "estimated_hours": 6,
+        "resources": [
+          "FastAPI official tutorial",
+          "TestDriven.io FastAPI course"
+        ]
+      },
+      {
+        "title": "Validation with Pydantic",
+        "description": "Models, field constraints, nested schemas and turning validation errors into useful 422 responses.",
+        "estimated_hours": 6,
+        "resources": [
+          "Pydantic documentation",
+          "FastAPI: Request Body docs"
+        ]
+      },
+      {
+        "title": "Database Integration",
+        "description": "SQLAlchemy models, sessions as dependencies, migrations with Alembic, and avoiding N+1 queries.",
+        "estimated_hours": 10,
+        "resources": [
+          "SQLAlchemy 2.0 tutorial",
+          "Alembic documentation"
+        ]
+      },
+      {
+        "title": "Authentication and Authorization",
+        "description": "Password hashing, OAuth2 password flow, JWT tokens and per-route permission checks.",
+        "estimated_hours": 10,
+        "resources": [
+          "FastAPI Security docs",
+          "OWASP API Security Top 10"
+        ]
+      },
+      {
+        "title": "Testing and Error Handling",
+        "description": "pytest with TestClient, fixtures for a test database, and consistent error responses.",
+        "estimated_hours": 8,
+        "resources": [
+          "pytest documentation",
+          "FastAPI Testing docs"
+        ]
+      },
+      {
+        "title": "Deployment",
+        "description": "Containerise with Docker, run behind Uvicorn/Gunicorn, configure via environment variables and add health checks.",
+        "estimated_hours": 8,
+        "resources": [
+          "Docker getting-started guide",
+          "FastAPI Deployment docs"
+        ]
+      }
+    ]
+  }
+}

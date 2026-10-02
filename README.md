@@ -221,6 +221,36 @@ The suite reads `TEST_DATABASE_URL`, never `DATABASE_URL`, and refuses any host 
 `localhost`/`127.0.0.1`: it drops every table before every test, so it must never be able to reach
 a real database.
 
+## Evaluating the generator (AP39)
+
+`backend/evals/` scores the learning-path generator against a gold set of 15 goals
+(`goldset.json`: 6 categories, 6 languages) on five **deterministic** checks: the model JSON
+validates against `GeneratedPath`; `category` matches; 5-8 milestones; keyword recall (the gold
+keywords were written from each goal, before any response existed); `estimated_hours`
+non-decreasing.
+
+```bash
+python backend/evals/run.py              # offline: fixtures through the real /api/generate, no network
+python backend/evals/run.py --live       # real Gemini calls (needs GEMINI_API_KEY, asks first)
+python backend/evals/run.py --record     # --live, then overwrite fixtures/ with the real replies
+python backend/evals/run.py --write-baseline   # after an intended change: re-pin baseline.json
+```
+
+`backend/tests/test_evals_ap39.py` fails if an offline score drops below `baseline.json`.
+
+Read the number honestly:
+
+- **Offline** measures the *pipeline* (prompt handling, validation, category coercion, the route,
+  the response model) against fixed replies. It does **not** re-measure the model. Only `--live`
+  does that. Every run prints the fixtures' source and date beside the score.
+- ⚠️ **The current fixtures are hand-written, not recorded** (`"source": "hand-authored"`): no API
+  key was available when the harness was built. They were written by the same person who wrote
+  the keywords, so keyword recall on them is 1.00 by construction and says nothing about the
+  model. Run `--record` once with a key to replace them.
+- The aggregate is a regression signal, not a quality score.
+- After any change to the prompt in `ai_service.py`: bump `PROMPT_VERSION`, run `--record`, review
+  the table, then `--write-baseline`.
+
 ## Usage
 
 1. **Enter your learning goal**
