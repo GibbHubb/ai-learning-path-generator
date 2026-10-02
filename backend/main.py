@@ -304,10 +304,14 @@ async def health_check():
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         return {"status": "healthy", "db": "up"}
-    except Exception as exc:  # noqa: BLE001 — any failure to reach the DB counts
+    except Exception:  # noqa: BLE001 — any failure to reach the DB counts
+        # AP49 — the body used to carry str(exc): on a real outage that is the
+        # driver's message, with the database host, IP and port, on a public
+        # unauthenticated route. The detail goes to the server log only.
+        logging.getLogger(__name__).exception("health check: database unreachable")
         return JSONResponse(
             status_code=503,
-            content={"status": "unhealthy", "db": "down", "error": str(exc)[:200]},
+            content={"status": "unhealthy", "db": "down"},
         )
 
 if __name__ == "__main__":
