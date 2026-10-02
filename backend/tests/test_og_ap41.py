@@ -58,6 +58,12 @@ def test_missing_bundled_font_falls_back_and_still_renders(monkeypatch, tmp_path
 
     def recording_truetype(font, size, *a, **kw):
         tried.append(str(font))
+        # AP48 — on Linux, Pillow retries a missing path by its BASENAME in the
+        # system font dirs, so on a host with DejaVu installed (GitHub's Ubuntu
+        # runner) the "missing" bundled file still loaded and no fallback ran.
+        # Make the missing bundle actually missing.
+        if "no-such-assets" in str(font):
+            raise OSError("cannot open resource")
         return real_truetype(font, size, *a, **kw)
 
     monkeypatch.setattr(ImageFont, "truetype", recording_truetype)
